@@ -30,36 +30,54 @@ namespace CqfProject
         PutCallPair values;
         values.call = Phi(d1) * price - Phi(d2) * strike * std::exp(-rate * timeToExpiry);
         values.put = strike * std::exp(-rate * timeToExpiry) - price + values.call;
+        // std::cout << "Call @ " << strike << ": " << values.call << std::endl;
         return values;
     }
 }
 
 int main()
 {
+    // NOTE: http://www.deltaquants.com/overhedging.html
+
     using namespace CqfProject;
 
+
+    double const rate = 0.05;
+    double const price = 100.0;
+    double const strike = 100.0;
+    double const overhedgeStrike = 90.0;
+    double const hedgeQty = 1.0 / (strike - overhedgeStrike);
+    double const minVol = 0.10;
+    double const maxVol = 0.30;
+    double const impliedVol = 0.20;
+    double const timeToExpiry = 1.0;
+
+
     std::vector<OptionContract> contracts;
-    // contracts.push_back(OptionContract::Call(1.0, 100.0, 1.0));
-    contracts.push_back(OptionContract::Put(1.0, 100.0, 1.0));
-    // contracts.push_back(OptionContract::BinaryCall(1.0, 100, 1.0));
+    contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
+    contracts.push_back(OptionContract::Call(timeToExpiry, overhedgeStrike, -hedgeQty));
+    contracts.push_back(OptionContract::Call(timeToExpiry, strike, hedgeQty));
 
     auto value = PricePortfolio(
-        0.20,
-        0.20,
-        0.05,
-        200.0,
-        100.0,
+        minVol,
+        maxVol,
+        rate,
+        price * 2.0,
+        price,
         1.0,
         0.01,
         contracts);
     
-    std::cout << std::get<0>(value) << std::endl;
-    std::cout << std::get<1>(value) << std::endl;
+    std::cout << "Portfolio bid: " << std::get<0>(value) << std::endl;
+    std::cout << "Portfolio ask: " << std::get<1>(value) << std::endl;
 
-    auto const prices = BlackScholesPutCall(0.20, 0.05, 1.0, 100.0, 100.0);
-
-    std::cout << "BS Call: " << prices.call << std::endl;
-    std::cout << "BS Put:  " << prices.put << std::endl;
+    auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
+    auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
+    double const callSpreadPrice = (prices1.call - prices2.call) * hedgeQty;
+    std::cout << "Call spread price: " << callSpreadPrice << std::endl;
+    
+    std::cout << "Binary bid: " << std::get<0>(value) + callSpreadPrice << std::endl;
+    std::cout << "Binary ask: " << std::get<1>(value) + callSpreadPrice << std::endl;
     
     return 0;
 
