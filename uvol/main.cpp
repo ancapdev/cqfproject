@@ -55,6 +55,20 @@ int main()
 
     std::vector<OptionContract> contracts;
     contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
+
+    auto unhedgedValue = PricePortfolio(
+        minVol,
+        maxVol,
+        rate,
+        price * 2.0,
+        price,
+        1.0,
+        0.01,
+        contracts);
+
+    std::cout << "Unhedged bid: " << std::get<0>(unhedgedValue) << std::endl;
+    std::cout << "Unhedged ask: " << std::get<1>(unhedgedValue) << std::endl;
+
     contracts.push_back(OptionContract::Call(timeToExpiry, overhedgeStrike, -hedgeQty));
     contracts.push_back(OptionContract::Call(timeToExpiry, strike, hedgeQty));
 
