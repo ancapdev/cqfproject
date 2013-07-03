@@ -1,8 +1,10 @@
 #include "fd.hpp"
 
-#include <iostream>
+#include "nlopt.hpp"
 
 #include <boost/math/distributions/normal.hpp>
+
+#include <iostream>
 
 namespace CqfProject
 {
@@ -93,6 +95,25 @@ int main()
     std::cout << "Binary bid: " << std::get<0>(value) + callSpreadPrice << std::endl;
     std::cout << "Binary ask: " << std::get<1>(value) + callSpreadPrice << std::endl;
     
+    
+    nlopt::opt optimizer(nlopt::GN_DIRECT_L, 2);
+    
+    auto objectivFunc = [] (std::vector<double> const& x, std::vector<double>&, void*) -> double
+    {
+        return x[0] * x[0] + x[1] * x[1];
+    };
+
+    optimizer.set_min_objective(objectivFunc, nullptr);
+    optimizer.set_lower_bounds(std::vector<double>(2, -1.0));
+    optimizer.set_upper_bounds(std::vector<double>(2, 1.0));
+    optimizer.set_maxeval(100);
+
+
+    std::vector<double> x(2, 0.0);
+    double optimizedValue = 0.0;
+    nlopt::result result = optimizer.optimize(x, optimizedValue);
+
+
     return 0;
 
 }
