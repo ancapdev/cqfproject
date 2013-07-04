@@ -23,6 +23,12 @@ namespace CqfProject
         double expiry;
         PayoffFunction payoff;
     };
+    
+    enum class Side
+    {
+        BID,
+        ASK
+    };
 
     std::tuple<double, double> PricePortfolio(
         double minVol,
@@ -32,6 +38,17 @@ namespace CqfProject
         double maxPrice,
         double targetDeltaPrice,
         double targetDeltaTime,
+        std::vector<OptionContract> contracts);
+
+    double PricePortfolio(
+        double minVol,
+        double maxVol,
+        double rate,
+        double currentPrice,
+        double maxPrice,
+        double targetDeltaPrice,
+        double targetDeltaTime,
+        Side side,
         std::vector<OptionContract> contracts);
 }
 

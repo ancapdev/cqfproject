@@ -13,8 +13,8 @@ namespace CqfProject
         double PricePortfolio_(
             VolSqFun volSqFun,
             double rate,
-            double maxPrice,
             double currentPrice,
+            double maxPrice,
             double targetDeltaPrice,
             double targetDeltaTime,
             const std::vector<OptionContract>& contracts)
@@ -119,8 +119,8 @@ namespace CqfProject
         double minVol,
         double maxVol,
         double rate,
-        double maxPrice,
         double currentPrice,
+        double maxPrice,
         double targetDeltaPrice,
         double targetDeltaTime,
         std::vector<OptionContract> contracts)
@@ -142,12 +142,52 @@ namespace CqfProject
 
         double const minValue = PricePortfolio_(
             [=] (double gamma) { return gamma > 0.0 ? minVolSq : maxVolSq; },
-            rate, maxPrice, currentPrice, targetDeltaPrice, targetDeltaTime, contracts);
+            rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
 
         double const maxValue = PricePortfolio_(
             [=] (double gamma) { return gamma > 0.0 ? maxVolSq : minVolSq; },
-            rate, maxPrice, currentPrice, targetDeltaPrice, targetDeltaTime, contracts);
+            rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
 
         return std::make_tuple(minValue, maxValue);
+    }
+
+    double PricePortfolio(
+        double minVol,
+        double maxVol,
+        double rate,
+        double currentPrice,
+        double maxPrice,
+        double targetDeltaPrice,
+        double targetDeltaTime,
+        Side side,
+        std::vector<OptionContract> contracts)
+    {
+        // TODO: Remove and do stability properly (based on target error)
+        std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
+        targetDeltaTime = 0.9 / (priceSteps * priceSteps * maxVol * maxVol);
+
+        // Sort contracts by descending expiry
+        std::sort(
+            contracts.begin(),
+            contracts.end(),
+            [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; });
+
+        double const minVolSq = minVol * minVol;
+        double const maxVolSq = maxVol * maxVol;
+
+        if (side == Side::BID)
+        {
+            // Minimum portfolio value
+            return PricePortfolio_(
+                [=] (double gamma) { return gamma > 0.0 ? minVolSq : maxVolSq; },
+                rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
+        }
+        else
+        {
+            // Maximum portfolio value
+            return PricePortfolio_(
+                [=] (double gamma) { return gamma > 0.0 ? maxVolSq : minVolSq; },
+                rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
+        }
     }
 }
