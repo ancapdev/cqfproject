@@ -3,10 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 project(cqf)
 
 if(WIN32)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /GS- /MP")
-  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:SSE2")
-  endif()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /GS- /MP /arch:AVX")
 endif()
 
 add_subdirectory(thirdparty/nlopt-2.3)

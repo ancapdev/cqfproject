@@ -8,38 +8,38 @@ namespace CqfProject
 {
     namespace
     {
-        /// \param volFun Function to generate volatility given gamma. Implements double operator()(double gamma) const
+        /// \param volFun Function to generate volatility given gamma. Implements Real operator()(Real gamma) const
         /// \contracts List of options contracts, ordered by descending expiry.
         template<typename VolSqGammaFun>
-        double PricePortfolio_(
+        Real PricePortfolio_(
             VolSqGammaFun volSqGammaFun,
-            double rate,
-            double currentPrice,
-            double maxPrice,
-            double targetDeltaPrice,
-            double targetDeltaTime,
+            Real rate,
+            Real currentPrice,
+            Real maxPrice,
+            Real targetDeltaPrice,
+            Real targetDeltaTime,
             const std::vector<OptionContract>& contracts)
         {
             // TODO: Check stability conditions
             //       Could automatically select deltaPrice and deltaTime to meet stability conditions, or pass in error tolerance
 
-            typedef std::vector<double> Column;
+            typedef std::vector<Real> Column;
             
             std::size_t const priceSteps = static_cast<std::size_t>(maxPrice / targetDeltaPrice) + 1;
-            double const deltaPrice = maxPrice / (priceSteps - 1);
-            double const deltaPriceSq = deltaPrice * deltaPrice;
-            double const invTwoDeltaPrice = 1.0 / (2.0 * deltaPrice);
-            double const invDeltaPriceSq = 1.0 / deltaPriceSq;
+            Real const deltaPrice = maxPrice / (priceSteps - 1);
+            Real const deltaPriceSq = deltaPrice * deltaPrice;
+            Real const invTwoDeltaPrice = Real(0.5) / deltaPrice;
+            Real const invDeltaPriceSq = Real(1) / deltaPriceSq;
 
             // Initial state
-            Column current_(priceSteps, 0.0);
-            double* __restrict current = &current_[0];
-            Column next_(priceSteps, 0.0);
-            double* __restrict next = &next_[0];
+            Column current_(priceSteps, Real(0));
+            Real* __restrict current = &current_[0];
+            Column next_(priceSteps, Real(0));
+            Real* __restrict next = &next_[0];
             
             // Cache prices
-            Column prices_(priceSteps, 0.0);
-            double* __restrict prices = &prices_[0];
+            Column prices_(priceSteps, Real(0));
+            Real* __restrict prices = &prices_[0];
             for (std::uint32_t i = 0; i < priceSteps; ++i)
                 prices[i] = i * deltaPrice;
 
@@ -56,8 +56,8 @@ namespace CqfProject
                     current[i] += contract.payoff(prices[i]);
 
                 // Find next expiry and time to it
-                double const nextExpiry = contractIndex == contracts.size() - 1 ? 0.0 : contracts[contractIndex + 1].expiry;
-                double const timeToNextExpiry = contract.expiry - nextExpiry;
+                Real const nextExpiry = contractIndex == contracts.size() - 1 ? Real(0) : contracts[contractIndex + 1].expiry;
+                Real const timeToNextExpiry = contract.expiry - nextExpiry;
 
                 // If contracts are too close together, assume at same expiry
                 // This can break under intentionally bad data, but shouldn't in practice
@@ -66,7 +66,7 @@ namespace CqfProject
 
                 // Simulate to next expiry or 0
                 std::uint32_t const timeSteps = static_cast<std::uint32_t>(timeToNextExpiry / targetDeltaTime) + 1;
-                double const deltaTime = timeToNextExpiry / (timeSteps - 1);
+                Real const deltaTime = timeToNextExpiry / (timeSteps - 1);
 
                 for (std::uint32_t k = 0; k < timeSteps; ++k)
                 {
@@ -74,17 +74,17 @@ namespace CqfProject
                     std::size_t const priceSteps_1 = priceSteps - 1;
                     for (std::size_t i = 1; i < priceSteps_1; ++i)
                     {
-                        double const price = prices[i];
-                        double const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
-                        double const gamma = (current[i+1] - 2.0 * current[i] + current[i-1]) * invDeltaPriceSq;
-                        double const theta = rate * current[i] - 0.5 * volSqGammaFun(gamma) * price * price - rate * price * delta;
+                        Real const price = prices[i];
+                        Real const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
+                        Real const gamma = (current[i+1] - Real(2) * current[i] + current[i-1]) * invDeltaPriceSq;
+                        Real const theta = rate * current[i] - Real(0.5) * volSqGammaFun(gamma) * price * price - rate * price * delta;
                         next[i] = current[i] - deltaTime * theta;
                     }
 
                     // Boundaries
-                    next[0] = (1.0 - rate * deltaTime) * current[0];
+                    next[0] = (Real(1) - rate * deltaTime) * current[0];
                     // TODO: check priceSteps >= 3
-                    next[priceSteps - 1] = 2.0 * next[priceSteps - 2] - next[priceSteps - 3];
+                    next[priceSteps - 1] = Real(2) * next[priceSteps - 2] - next[priceSteps - 3];
 
                     // next.swap(current);
                     std::swap(next, current);
@@ -103,36 +103,36 @@ namespace CqfProject
                 return current[0];
 
             // Interpolate between prices above and below current price
-            double const v0 = current[index - 1];
-            double const v1 = current[index];
-            double const k = (prices[index] - currentPrice) / deltaPrice;
-            return v0 * k + v1 * (1.0 - k);
+            Real const v0 = current[index - 1];
+            Real const v1 = current[index];
+            Real const k = (prices[index] - currentPrice) / deltaPrice;
+            return v0 * k + v1 * (Real(1) - k);
         }
     }
 
-    OptionContract OptionContract::Call(double expiry, double strike, double multiplier)
+    OptionContract OptionContract::Call(Real expiry, Real strike, Real multiplier)
     {
-        return OptionContract(expiry, [=] (double price) { return multiplier * std::max(price - strike, 0.0); });
+        return OptionContract(expiry, [=] (Real price) { return multiplier * std::max(price - strike, Real(0)); });
     }
 
-    OptionContract OptionContract::Put(double expiry, double strike, double multiplier)
+    OptionContract OptionContract::Put(Real expiry, Real strike, Real multiplier)
     {
-        return OptionContract(expiry, [=] (double price) { return multiplier * std::max(strike - price, 0.0); });
+        return OptionContract(expiry, [=] (Real price) { return multiplier * std::max(strike - price, Real(0)); });
     }
 
-    OptionContract OptionContract::BinaryCall(double expiry, double strike, double multiplier)
+    OptionContract OptionContract::BinaryCall(Real expiry, Real strike, Real multiplier)
     {
-        return OptionContract(expiry, [=] (double price) { return price > strike ? multiplier : 0.0; });
+        return OptionContract(expiry, [=] (Real price) { return price > strike ? multiplier : Real(0); });
     }
 
-    std::tuple<double, double> PricePortfolio(
-        double minVol,
-        double maxVol,
-        double rate,
-        double currentPrice,
-        double maxPrice,
-        double targetDeltaPrice,
-        double targetDeltaTime,
+    std::tuple<Real, Real> PricePortfolio(
+        Real minVol,
+        Real maxVol,
+        Real rate,
+        Real currentPrice,
+        Real maxPrice,
+        Real targetDeltaPrice,
+        Real targetDeltaTime,
         std::vector<OptionContract> const& contracts)
     {
         return std::make_tuple(
@@ -140,14 +140,14 @@ namespace CqfProject
             PricePortfolio(minVol, maxVol, rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, Side::ASK, contracts));
     }
 
-    double PricePortfolio(
-        double minVol,
-        double maxVol,
-        double rate,
-        double currentPrice,
-        double maxPrice,
-        double targetDeltaPrice,
-        double targetDeltaTime,
+    Real PricePortfolio(
+        Real minVol,
+        Real maxVol,
+        Real rate,
+        Real currentPrice,
+        Real maxPrice,
+        Real targetDeltaPrice,
+        Real targetDeltaTime,
         Side side,
         std::vector<OptionContract> const& contracts)
     {
@@ -156,23 +156,23 @@ namespace CqfProject
 
         // TODO: Remove and do stability properly (based on target error)
         std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
-        targetDeltaTime = 0.9 / (priceSteps * priceSteps * maxVol * maxVol);
+        targetDeltaTime = Real(0.9) / (priceSteps * priceSteps * maxVol * maxVol);
         
-        double const minVolSq = minVol * minVol;
-        double const maxVolSq = maxVol * maxVol;
+        Real const minVolSq = minVol * minVol;
+        Real const maxVolSq = maxVol * maxVol;
 
         if (side == Side::BID)
         {
             // Minimum portfolio value
             return PricePortfolio_(
-                // [=] (double gamma) { return gamma > 0.0 ? minVolSq * gamma : maxVolSq * gamma; },
-                [=] (double gamma) -> double
+                // [=] (Real gamma) { return gamma > 0.0 ? minVolSq * gamma : maxVolSq * gamma; },
+                [=] (Real gamma) -> Real
                 {
                     // NOTE: Rather than select on gamma > 0 directly, use a min/max like construct which is vectorizable
                     //       Equivalent would be 
                     //       return gamma > 0.0 ? minVolSq * gamma : maxVolSq * gamma;
-                    double const g1 = gamma * minVolSq;
-                    double const g2 = gamma * maxVolSq;
+                    Real const g1 = gamma * minVolSq;
+                    Real const g2 = gamma * maxVolSq;
                     return g1 < g2 ? g1 : g2;
                 },
                 rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
@@ -181,10 +181,10 @@ namespace CqfProject
         {
             // Maximum portfolio value
             return PricePortfolio_(
-                [=] (double gamma) -> double
+                [=] (Real gamma) -> Real
                 {
-                    double const g1 = gamma * minVolSq;
-                    double const g2 = gamma * maxVolSq;
+                    Real const g1 = gamma * minVolSq;
+                    Real const g2 = gamma * maxVolSq;
                     return g1 > g2 ? g1 : g2;
                 },
                 rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);

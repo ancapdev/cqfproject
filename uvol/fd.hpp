@@ -7,20 +7,22 @@
 
 namespace CqfProject
 {
+    typedef double Real;
+
     struct OptionContract
     {
-        typedef std::function<double (double price)> PayoffFunction;
+        typedef std::function<Real (Real price)> PayoffFunction;
 
-        OptionContract(double expiry, PayoffFunction const& payoff)
+        OptionContract(Real expiry, PayoffFunction const& payoff)
             : expiry(expiry)
             , payoff(payoff)
         {}
 
-        static OptionContract Call(double expiry, double strike, double multiplier);
-        static OptionContract Put(double expiry, double strike, double multiplier);
-        static OptionContract BinaryCall(double expiry, double strike, double multiplier);
+        static OptionContract Call(Real expiry, Real strike, Real multiplier);
+        static OptionContract Put(Real expiry, Real strike, Real multiplier);
+        static OptionContract BinaryCall(Real expiry, Real strike, Real multiplier);
 
-        double expiry;
+        Real expiry;
         PayoffFunction payoff;
     };
     
@@ -30,24 +32,24 @@ namespace CqfProject
         ASK
     };
 
-    std::tuple<double, double> PricePortfolio(
-        double minVol,
-        double maxVol,
-        double rate,
-        double currentPrice,
-        double maxPrice,
-        double targetDeltaPrice,
-        double targetDeltaTime,
+    std::tuple<Real, Real> PricePortfolio(
+        Real minVol,
+        Real maxVol,
+        Real rate,
+        Real currentPrice,
+        Real maxPrice,
+        Real targetDeltaPrice,
+        Real targetDeltaTime,
         std::vector<OptionContract> const& contracts);
 
-    double PricePortfolio(
-        double minVol,
-        double maxVol,
-        double rate,
-        double currentPrice,
-        double maxPrice,
-        double targetDeltaPrice,
-        double targetDeltaTime,
+    Real PricePortfolio(
+        Real minVol,
+        Real maxVol,
+        Real rate,
+        Real currentPrice,
+        Real maxPrice,
+        Real targetDeltaPrice,
+        Real targetDeltaTime,
         Side side,
         std::vector<OptionContract> const& contracts);
 }

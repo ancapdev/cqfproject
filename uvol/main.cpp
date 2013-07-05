@@ -10,26 +10,26 @@
 
 namespace CqfProject
 {
-    double Phi(double x)
+    Real Phi(Real x)
     {
-        return boost::math::cdf(boost::math::normal(), x);
+        return (Real)boost::math::cdf(boost::math::normal(), x);
     }
 
     struct PutCallPair
     {
-        double call;
-        double put;
+        Real call;
+        Real put;
     };
 
     PutCallPair BlackScholesPutCall(
-        double vol,
-        double rate,
-        double timeToExpiry,
-        double price,
-        double strike)
+        Real vol,
+        Real rate,
+        Real timeToExpiry,
+        Real price,
+        Real strike)
     {
-        double const d1 = (1.0 / (vol * std::sqrt(timeToExpiry))) * (std::log(price / strike) + (rate + 0.5 * vol * vol) * timeToExpiry);
-        double const d2 = d1 - vol * timeToExpiry;
+        Real const d1 = (Real(1) / (vol * std::sqrt(timeToExpiry))) * (std::log(price / strike) + (rate + Real(0.5) * vol * vol) * timeToExpiry);
+        Real const d2 = d1 - vol * timeToExpiry;
 
         PutCallPair values;
         values.call = Phi(d1) * price - Phi(d2) * strike * std::exp(-rate * timeToExpiry);
@@ -39,19 +39,19 @@ namespace CqfProject
     }
 
 
-    double const rate = 0.05;
-    double const price = 100.0;
-    double const strike = 100.0;
-    double const overhedgeStrike = 90.0;
-    double const hedgeQty = 1.0 / (strike - overhedgeStrike);
-    double const minVol = 0.10;
-    double const maxVol = 0.30;
-    double const impliedVol = 0.20;
-    double const timeToExpiry = 1.0;
+    Real const rate = 0.05;
+    Real const price = 100.0;
+    Real const strike = 100.0;
+    Real const overhedgeStrike = 90.0;
+    Real const hedgeQty = Real(1.0) / (strike - overhedgeStrike);
+    Real const minVol = 0.10;
+    Real const maxVol = 0.30;
+    Real const impliedVol = 0.20;
+    Real const timeToExpiry = 1.0;
 
 
 
-    double PriceHedgedBinaryBid(double x0, double x1)
+    Real PriceHedgedBinaryBid(Real x0, Real x1)
     {
         std::vector<OptionContract> contracts;
         contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
@@ -60,21 +60,21 @@ namespace CqfProject
 
         auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
         auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
-        double const hedgeCost = prices1.call * x0 + prices2.call * x1;
+        Real const hedgeCost = prices1.call * x0 + prices2.call * x1;
 
         return PricePortfolio(
             minVol,
             maxVol,
             rate,
             price,
-            price * 2.0,
-            1.0,
-            0.01,
+            price * Real(2),
+            Real(1),
+            Real(0.01),
             Side::BID,
             contracts) - hedgeCost;
     }
 
-    double PriceBinaryBid()
+    Real PriceBinaryBid()
     {
         std::vector<OptionContract> contracts;
         contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
@@ -84,9 +84,9 @@ namespace CqfProject
             maxVol,
             rate,
             price,
-            price * 2.0,
-            1.0,
-            0.01,
+            price * Real(2),
+            Real(1),
+            Real(0.01),
             Side::BID,
             contracts);
     }
@@ -144,9 +144,9 @@ int main()
             maxVol,
             rate,
             price,
-            price * 2.0,
-            1.0,
-            0.01,
+            price * Real(2),
+            Real(1),
+            Real(0.01),
             contracts);
         stopwatch.Stop();
 
@@ -163,9 +163,9 @@ int main()
             maxVol,
             rate,
             price,
-            price * 2.0,
-            1.0,
-            0.01,
+            price * Real(2),
+            Real(1),
+            Real(0.01),
             contracts);
         stopwatch.Stop();
 
@@ -175,7 +175,7 @@ int main()
 
         auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
         auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
-        double const callSpreadPrice = (prices1.call - prices2.call) * hedgeQty;
+        Real const callSpreadPrice = (prices1.call - prices2.call) * hedgeQty;
         std::cout << "Call spread price: " << callSpreadPrice << std::endl;
 
         std::cout << "Binary bid: " << std::get<0>(value) + callSpreadPrice << std::endl;
@@ -187,9 +187,8 @@ int main()
     
     auto objectivFunc = [] (std::vector<double> const& x, std::vector<double>&, void*) -> double
     {
-        double const value = PriceHedgedBinaryBid(x[0], x[1]);
-        // std::cout << "V(" << x[0] << ", " << x[1] << ") = " << value << std::endl;
-        return value;
+        Real const value = PriceHedgedBinaryBid((Real)x[0], (Real)x[1]);
+        return (double)value;
     };
 
     // optimizer.set_min_objective(objectivFunc, nullptr);
@@ -211,12 +210,12 @@ int main()
         std::cout << "Hedge Qty:     " << x[1] << std::endl;
         std::cout << "Result:        " << result << std::endl;
 
-        double const bid = PriceBinaryBid();
-        double const hedgedBid = PriceHedgedBinaryBid(x[0], x[1]);
+        Real const bid = PriceBinaryBid();
+        Real const hedgedBid = PriceHedgedBinaryBid((Real)x[0], (Real)x[1]);
 
         auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
         auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
-        double const hedgeCost = prices1.call * x[0] + prices2.call * x[1];
+        Real const hedgeCost = prices1.call * (Real)x[0] + prices2.call * (Real)x[1];
 
         std::cout << "Bid:           " << bid << std::endl;
         std::cout << "Hedged bid:    " << hedgedBid << std::endl;
