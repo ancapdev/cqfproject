@@ -23,7 +23,7 @@ namespace CqfProject
             //       Could automatically select deltaPrice and deltaTime to meet stability conditions, or pass in error tolerance
 
             typedef std::vector<double> Column;
-
+            
             std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
             double const deltaPrice = maxPrice / (priceSteps - 1);
             double const deltaPriceSq = deltaPrice * deltaPrice;
@@ -31,7 +31,7 @@ namespace CqfProject
             // Initial state
             Column current(priceSteps, 0.0);
             Column next(priceSteps, 0.0);
-
+            
             // Cache prices
             Column prices(priceSteps, 0.0);
             for (std::uint32_t i = 0; i < priceSteps; ++i)

@@ -4,6 +4,8 @@
 
 #include <boost/math/distributions/normal.hpp>
 
+#include <cstdint>
+#include <chrono>
 #include <iostream>
 
 namespace CqfProject
@@ -88,6 +90,41 @@ namespace CqfProject
             Side::BID,
             contracts);
     }
+
+    class Stopwatch
+    {
+    public:
+        void Start()
+        {
+            mStart = std::chrono::high_resolution_clock::now();
+        }
+
+        void Stop()
+        {
+            mStop = std::chrono::high_resolution_clock::now();
+        }
+
+        std::int64_t GetElapsedNanoseconds() const
+        {
+            return std::chrono::duration_cast<std::chrono::nanoseconds>(mStop - mStart).count();
+        }
+
+        std::int64_t GetElapsedMicroseconds() const
+        {
+            return std::chrono::duration_cast<std::chrono::microseconds>(mStop - mStart).count();
+        }
+
+        std::int64_t GetElapsedMilliseconds() const
+        {
+            return std::chrono::duration_cast<std::chrono::milliseconds>(mStop - mStart).count();
+        }
+
+    private:
+        typedef std::chrono::high_resolution_clock::time_point TimePoint;
+
+        TimePoint mStart;
+        TimePoint mStop;
+    };
 }
 
 int main()
@@ -96,11 +133,12 @@ int main()
 
     using namespace CqfProject;
 
-
+    Stopwatch stopwatch;
     {
         std::vector<OptionContract> contracts;
         contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
 
+        stopwatch.Start();
         auto unhedgedValue = PricePortfolio(
             minVol,
             maxVol,
@@ -110,13 +148,16 @@ int main()
             1.0,
             0.01,
             contracts);
+        stopwatch.Stop();
 
+        std::cout << "Duration: " << stopwatch.GetElapsedMilliseconds() << "ms" << std::endl;
         std::cout << "Unhedged bid: " << std::get<0>(unhedgedValue) << std::endl;
         std::cout << "Unhedged ask: " << std::get<1>(unhedgedValue) << std::endl;
 
         contracts.push_back(OptionContract::Call(timeToExpiry, overhedgeStrike, -hedgeQty));
         contracts.push_back(OptionContract::Call(timeToExpiry, strike, hedgeQty));
 
+        stopwatch.Start();
         auto value = PricePortfolio(
             minVol,
             maxVol,
@@ -126,7 +167,9 @@ int main()
             1.0,
             0.01,
             contracts);
+        stopwatch.Stop();
 
+        std::cout << "Duration: " << stopwatch.GetElapsedMilliseconds() << "ms" << std::endl;
         std::cout << "Portfolio bid: " << std::get<0>(value) << std::endl;
         std::cout << "Portfolio ask: " << std::get<1>(value) << std::endl;
 
@@ -144,7 +187,9 @@ int main()
     
     auto objectivFunc = [] (std::vector<double> const& x, std::vector<double>&, void*) -> double
     {
-        return PriceHedgedBinaryBid(x[0], x[1]);
+        double const value = PriceHedgedBinaryBid(x[0], x[1]);
+        // std::cout << "V(" << x[0] << ", " << x[1] << ") = " << value << std::endl;
+        return value;
     };
 
     // optimizer.set_min_objective(objectivFunc, nullptr);
@@ -158,7 +203,10 @@ int main()
     double optimizedValue = 0.0;
     try
     {
+        stopwatch.Start();
         nlopt::result result = optimizer.optimize(x, optimizedValue);
+        stopwatch.Stop();
+        std::cout << "Duration: " << stopwatch.GetElapsedMilliseconds() << "ms" << std::endl;
         std::cout << "Overhedge Qty: " << x[0] << std::endl;
         std::cout << "Hedge Qty:     " << x[1] << std::endl;
         std::cout << "Result:        " << result << std::endl;
