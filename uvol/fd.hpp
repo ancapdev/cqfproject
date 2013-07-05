@@ -38,7 +38,7 @@ namespace CqfProject
         double maxPrice,
         double targetDeltaPrice,
         double targetDeltaTime,
-        std::vector<OptionContract> contracts);
+        std::vector<OptionContract> const& contracts);
 
     double PricePortfolio(
         double minVol,
@@ -49,7 +49,7 @@ namespace CqfProject
         double targetDeltaPrice,
         double targetDeltaTime,
         Side side,
-        std::vector<OptionContract> contracts);
+        std::vector<OptionContract> const& contracts);
 }
 
 #endif

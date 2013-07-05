@@ -1,6 +1,7 @@
 #include "fd.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 
 namespace CqfProject
@@ -9,9 +10,9 @@ namespace CqfProject
     {
         /// \param volFun Function to generate volatility given gamma. Implements double operator()(double gamma) const
         /// \contracts List of options contracts, ordered by descending expiry.
-        template<typename VolSqFun>
+        template<typename VolSqGammaFun>
         double PricePortfolio_(
-            VolSqFun volSqFun,
+            VolSqGammaFun volSqGammaFun,
             double rate,
             double currentPrice,
             double maxPrice,
@@ -76,20 +77,7 @@ namespace CqfProject
                         double const price = prices[i];
                         double const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
                         double const gamma = (current[i+1] - 2.0 * current[i] + current[i-1]) * invDeltaPriceSq;
-                        //*
-                        // TODO: Enable vectorized code
-                        // TODO: Take care to align loads and stores (and keep in mind +1 index for boundaries)
-                        double const volSq = volSqFun(gamma);
-                        double const theta = rate * current[i] - 0.5 * volSq * price * price * gamma - rate * price * delta;
-                        /*/
-                        double const minVolSq = 0.1 * 0.1;
-                        double const maxVolSq = 0.3 * 0.3;
-                        double const gammaTerm1 = gamma * minVolSq;
-                        double const gammaTerm2 = gamma * maxVolSq;
-                        double const gammaTerm = gammaTerm1 > gammaTerm2 ? gammaTerm1 : gammaTerm2;
-                        double const theta = rate * current[i] - 0.5 * gammaTerm * price * price - rate * price * delta;
-                        //*/
-
+                        double const theta = rate * current[i] - 0.5 * volSqGammaFun(gamma) * price * price - rate * price * delta;
                         next[i] = current[i] - deltaTime * theta;
                     }
 
@@ -145,32 +133,11 @@ namespace CqfProject
         double maxPrice,
         double targetDeltaPrice,
         double targetDeltaTime,
-        std::vector<OptionContract> contracts)
+        std::vector<OptionContract> const& contracts)
     {
-
-        // TODO: Remove and do stability properly (based on target error)
-        std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
-        targetDeltaTime = 0.9 / (priceSteps * priceSteps * maxVol * maxVol);
-
-
-        // Sort contracts by descending expiry
-        std::sort(
-            contracts.begin(),
-            contracts.end(),
-            [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; });
-
-        double const minVolSq = minVol * minVol;
-        double const maxVolSq = maxVol * maxVol;
-
-        double const minValue = PricePortfolio_(
-            [=] (double gamma) { return gamma > 0.0 ? minVolSq : maxVolSq; },
-            rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
-
-        double const maxValue = PricePortfolio_(
-            [=] (double gamma) { return gamma > 0.0 ? maxVolSq : minVolSq; },
-            rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
-
-        return std::make_tuple(minValue, maxValue);
+        return std::make_tuple(
+            PricePortfolio(minVol, maxVol, rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, Side::BID, contracts),
+            PricePortfolio(minVol, maxVol, rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, Side::ASK, contracts));
     }
 
     double PricePortfolio(
@@ -182,18 +149,15 @@ namespace CqfProject
         double targetDeltaPrice,
         double targetDeltaTime,
         Side side,
-        std::vector<OptionContract> contracts)
+        std::vector<OptionContract> const& contracts)
     {
+        // Check that contracts are sorted by descending expiry
+        assert(std::is_sorted(contracts.begin(), contracts.end(), [](OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; }));
+
         // TODO: Remove and do stability properly (based on target error)
         std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
         targetDeltaTime = 0.9 / (priceSteps * priceSteps * maxVol * maxVol);
-
-        // Sort contracts by descending expiry
-        std::sort(
-            contracts.begin(),
-            contracts.end(),
-            [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; });
-
+        
         double const minVolSq = minVol * minVol;
         double const maxVolSq = maxVol * maxVol;
 
@@ -201,14 +165,28 @@ namespace CqfProject
         {
             // Minimum portfolio value
             return PricePortfolio_(
-                [=] (double gamma) { return gamma > 0.0 ? minVolSq : maxVolSq; },
+                // [=] (double gamma) { return gamma > 0.0 ? minVolSq * gamma : maxVolSq * gamma; },
+                [=] (double gamma) -> double
+                {
+                    // NOTE: Rather than select on gamma > 0 directly, use a min/max like construct which is vectorizable
+                    //       Equivalent would be 
+                    //       return gamma > 0.0 ? minVolSq * gamma : maxVolSq * gamma;
+                    double const g1 = gamma * minVolSq;
+                    double const g2 = gamma * maxVolSq;
+                    return g1 < g2 ? g1 : g2;
+                },
                 rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
         }
         else
         {
             // Maximum portfolio value
             return PricePortfolio_(
-                [=] (double gamma) { return gamma > 0.0 ? maxVolSq : minVolSq; },
+                [=] (double gamma) -> double
+                {
+                    double const g1 = gamma * minVolSq;
+                    double const g2 = gamma * maxVolSq;
+                    return g1 > g2 ? g1 : g2;
+                },
                 rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
         }
     }
