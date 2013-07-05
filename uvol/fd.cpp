@@ -78,6 +78,7 @@ namespace CqfProject
                         double const gamma = (current[i+1] - 2.0 * current[i] + current[i-1]) * invDeltaPriceSq;
                         //*
                         // TODO: Enable vectorized code
+                        // TODO: Take care to align loads and stores (and keep in mind +1 index for boundaries)
                         double const volSq = volSqFun(gamma);
                         double const theta = rate * current[i] - 0.5 * volSq * price * price * gamma - rate * price * delta;
                         /*/
