@@ -24,18 +24,26 @@ namespace CqfProject
 
             typedef std::vector<double> Column;
             
-            std::uint32_t const priceSteps = static_cast<std::uint32_t>(maxPrice / targetDeltaPrice) + 1;
+            std::size_t const priceSteps = static_cast<std::size_t>(maxPrice / targetDeltaPrice) + 1;
             double const deltaPrice = maxPrice / (priceSteps - 1);
             double const deltaPriceSq = deltaPrice * deltaPrice;
+            double const invTwoDeltaPrice = 1.0 / (2.0 * deltaPrice);
+            double const invDeltaPriceSq = 1.0 / deltaPriceSq;
 
             // Initial state
-            Column current(priceSteps, 0.0);
-            Column next(priceSteps, 0.0);
+            Column current_(priceSteps, 0.0);
+            double* __restrict current = &current_[0];
+            Column next_(priceSteps, 0.0);
+            double* __restrict next = &next_[0];
             
             // Cache prices
-            Column prices(priceSteps, 0.0);
+            Column prices_(priceSteps, 0.0);
+            double* __restrict prices = &prices_[0];
             for (std::uint32_t i = 0; i < priceSteps; ++i)
                 prices[i] = i * deltaPrice;
+
+
+
 
             // March from last expiry to next expiry or to 0
             for (std::size_t contractIndex = 0; contractIndex < contracts.size(); ++contractIndex)
@@ -62,13 +70,25 @@ namespace CqfProject
                 for (std::uint32_t k = 0; k < timeSteps; ++k)
                 {
                     // Main grid
-                    for (std::uint32_t i = 1; i < (priceSteps - 1); ++i)
+                    std::size_t const priceSteps_1 = priceSteps - 1;
+                    for (std::size_t i = 1; i < priceSteps_1; ++i)
                     {
                         double const price = prices[i];
-                        double const delta = (current[i+1] - current[i-1]) / (2.0 * deltaPrice);
-                        double const gamma = (current[i+1] - 2.0 * current[i] + current[i-1]) / deltaPriceSq;
+                        double const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
+                        double const gamma = (current[i+1] - 2.0 * current[i] + current[i-1]) * invDeltaPriceSq;
+                        //*
+                        // TODO: Enable vectorized code
                         double const volSq = volSqFun(gamma);
                         double const theta = rate * current[i] - 0.5 * volSq * price * price * gamma - rate * price * delta;
+                        /*/
+                        double const minVolSq = 0.1 * 0.1;
+                        double const maxVolSq = 0.3 * 0.3;
+                        double const gammaTerm1 = gamma * minVolSq;
+                        double const gammaTerm2 = gamma * maxVolSq;
+                        double const gammaTerm = gammaTerm1 > gammaTerm2 ? gammaTerm1 : gammaTerm2;
+                        double const theta = rate * current[i] - 0.5 * gammaTerm * price * price - rate * price * delta;
+                        //*/
+
                         next[i] = current[i] - deltaTime * theta;
                     }
 
@@ -77,16 +97,17 @@ namespace CqfProject
                     // TODO: check priceSteps >= 3
                     next[priceSteps - 1] = 2.0 * next[priceSteps - 2] - next[priceSteps - 3];
 
-                    next.swap(current);
+                    // next.swap(current);
+                    std::swap(next, current);
                 }
             }
 
             // Find closest point above current price
-            auto it = std::upper_bound(prices.begin(), prices.end(), currentPrice);
-            if (it == prices.end())
+            auto it = std::upper_bound(prices_.begin(), prices_.end(), currentPrice);
+            if (it == prices_.end())
                 throw std::runtime_error("Current price not in simulated set");
 
-            auto const index = it - prices.begin();
+            auto const index = it - prices_.begin();
 
             // If at 0.0, return lowest price value
             if (index == 0)
