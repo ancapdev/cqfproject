@@ -137,6 +137,17 @@ int main()
     {
         std::vector<OptionContract> contracts;
         contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
+        
+        FiniteDifferencePricer pricer(
+            minVol,
+            maxVol,
+            rate,
+            price * Real(2),
+            201); // TODO: Adjust this after fixing pricer logic
+
+        pricer.AddContract(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
+        Real bid = pricer.Valuate(price, Side::BID);
+        Real ask = pricer.Valuate(price, Side::ASK);
 
         stopwatch.Start();
         auto unhedgedValue = PricePortfolio(
@@ -151,8 +162,8 @@ int main()
         stopwatch.Stop();
 
         std::cout << "Duration: " << stopwatch.GetElapsedMilliseconds() << "ms" << std::endl;
-        std::cout << "Unhedged bid: " << std::get<0>(unhedgedValue) << std::endl;
-        std::cout << "Unhedged ask: " << std::get<1>(unhedgedValue) << std::endl;
+        std::cout << "Unhedged bid: " << std::get<0>(unhedgedValue) << " (" << bid << ")" << std::endl;
+        std::cout << "Unhedged ask: " << std::get<1>(unhedgedValue) << " (" << ask << ")" << std::endl;
 
         contracts.push_back(OptionContract::Call(timeToExpiry, overhedgeStrike, -hedgeQty));
         contracts.push_back(OptionContract::Call(timeToExpiry, strike, hedgeQty));
