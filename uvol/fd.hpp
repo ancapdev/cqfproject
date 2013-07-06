@@ -12,21 +12,38 @@ namespace CqfProject
 
     struct OptionContract
     {
-        typedef std::function<Real (Real price)> PayoffFunction;
-
-        OptionContract(Real expiry, PayoffFunction const& payoff)
+        OptionContract(Real expiry, Real multiplier)
             : expiry(expiry)
-            , payoff(payoff)
+            , multiplier(multiplier)
         {}
 
-        static OptionContract Call(Real expiry, Real strike, Real multiplier);
-        static OptionContract Put(Real expiry, Real strike, Real multiplier);
-        static OptionContract BinaryCall(Real expiry, Real strike, Real multiplier);
+        virtual Real CalculatePayoff(Real price) const = 0;
 
         Real expiry;
-        PayoffFunction payoff;
+        Real multiplier;
     };
-    
+
+    template<typename PayoffFunc>
+    struct SimpleContract : OptionContract, PayoffFunc
+    {
+        SimpleContract(Real expiry, Real strike, Real multiplier) : OptionContract(expiry, multiplier), strike(strike) {}
+
+        virtual Real CalculatePayoff(Real price) const override
+        {
+            return (*this)(strike, price);
+        }
+
+        Real strike;
+    };
+
+    struct CallPayoff       { Real operator () (Real strike, Real price) const { return std::max(price - strike, Real(0)); } };
+    struct PutPayoff        { Real operator () (Real strike, Real price) const { return std::max(strike - price, Real(0)); } };
+    struct BinarYCallPayoff { Real operator () (Real strike, Real price) const { return price > strike ? 1.0 : 0.0; } };
+
+    typedef SimpleContract<CallPayoff> Call;
+    typedef SimpleContract<PutPayoff> Put;
+    typedef SimpleContract<BinarYCallPayoff> BinaryCall;
+
     enum class Side
     {
         BID,
@@ -64,7 +81,7 @@ namespace CqfProject
             Real maxPrice,
             std::size_t numPriceSteps);
 
-        void AddContract(OptionContract const& contract);
+        void AddContract(OptionContract const* contract);
 
         Real Valuate(Real price, Side side);
 
@@ -81,7 +98,7 @@ namespace CqfProject
         Real mMaxPrice;
         // TODO: Fix so grid size is numPriceSteps + 1
         std::size_t mNumPriceSteps;
-        std::vector<OptionContract> mContracts;
+        std::vector<OptionContract const*> mContracts;
 
         //
         // Inferred parameters

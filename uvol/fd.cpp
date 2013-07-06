@@ -6,6 +6,7 @@
 
 namespace CqfProject
 {
+#if 0
     namespace
     {
         /// \param volFun Function to generate volatility given gamma. Implements Real operator()(Real gamma) const
@@ -110,21 +111,6 @@ namespace CqfProject
         }
     }
 
-    OptionContract OptionContract::Call(Real expiry, Real strike, Real multiplier)
-    {
-        return OptionContract(expiry, [=] (Real price) { return multiplier * std::max(price - strike, Real(0)); });
-    }
-
-    OptionContract OptionContract::Put(Real expiry, Real strike, Real multiplier)
-    {
-        return OptionContract(expiry, [=] (Real price) { return multiplier * std::max(strike - price, Real(0)); });
-    }
-
-    OptionContract OptionContract::BinaryCall(Real expiry, Real strike, Real multiplier)
-    {
-        return OptionContract(expiry, [=] (Real price) { return price > strike ? multiplier : Real(0); });
-    }
-
     std::tuple<Real, Real> PricePortfolio(
         Real minVol,
         Real maxVol,
@@ -190,6 +176,7 @@ namespace CqfProject
                 rate, currentPrice, maxPrice, targetDeltaPrice, targetDeltaTime, contracts);
         }
     }
+#endif
 
 
     FiniteDifferencePricer::FiniteDifferencePricer(
@@ -218,19 +205,18 @@ namespace CqfProject
     }
         
 
-    void FiniteDifferencePricer::AddContract(OptionContract const& contract)
+    void FiniteDifferencePricer::AddContract(OptionContract const* contract)
     {
         mContracts.push_back(contract);
-
-        // Maintain contracts sorted by descending expiry
-        std::sort(
-            mContracts.begin(),
-            mContracts.end(),
-            [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; });
     }
 
     Real FiniteDifferencePricer::Valuate(Real price, Side side)
     {
+        // Maintain contracts sorted by descending expiry
+        auto const expiryGreater = [] (OptionContract const* a, OptionContract const* b) { return a->expiry > b->expiry; };
+        if (!std::is_sorted(mContracts.begin(), mContracts.end(), expiryGreater))
+            std::sort(mContracts.begin(), mContracts.end(), expiryGreater);
+
         Real const minVolSq = mMinVol * mMinVol;
         Real const maxVolSq = mMaxVol * mMaxVol;
 
@@ -285,14 +271,14 @@ namespace CqfProject
         // March from last expiry to next expiry or to 0
         for (std::size_t contractIndex = 0; contractIndex < mContracts.size(); ++contractIndex)
         {
-            OptionContract const& contract = mContracts[contractIndex];
+            OptionContract const& contract = *mContracts[contractIndex];
 
             // Add payoffs
             for (std::uint32_t i = 0; i < numPriceSteps; ++i)
-                current[i] += contract.payoff(prices[i]);
+                current[i] += contract.CalculatePayoff(prices[i]) * contract.multiplier;
 
             // Find next expiry and time to it
-            Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1].expiry;
+            Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1]->expiry;
             Real const timeToNextExpiry = contract.expiry - nextExpiry;
 
             // If contracts are too close together, assume at same expiry
