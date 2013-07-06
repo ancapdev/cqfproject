@@ -5,6 +5,8 @@ project(cqf)
 if(WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /GS- /MP")
   # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+else()
+  set(CMAKE_CXX_FLAGS "-std=c++11")
 endif()
 
 add_subdirectory(thirdparty/nlopt-2.3)
