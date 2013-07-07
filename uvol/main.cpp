@@ -3,6 +3,7 @@
 #include "nlopt.hpp"
 
 #include <boost/math/distributions/normal.hpp>
+#include <boost/noncopyable.hpp>
 
 #include <cstdint>
 #include <chrono>
@@ -48,48 +49,6 @@ namespace CqfProject
     Real const maxVol = 0.30;
     Real const impliedVol = 0.20;
     Real const timeToExpiry = 1.0;
-
-#if 0
-    Real PriceHedgedBinaryBid(Real x0, Real x1)
-    {
-        std::vector<OptionContract> contracts;
-        contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
-        contracts.push_back(OptionContract::Call(timeToExpiry, overhedgeStrike, x0));
-        contracts.push_back(OptionContract::Call(timeToExpiry, strike, x1));
-
-        auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
-        auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
-        Real const hedgeCost = prices1.call * x0 + prices2.call * x1;
-
-        return PricePortfolio(
-            minVol,
-            maxVol,
-            rate,
-            price,
-            price * Real(2),
-            Real(1),
-            Real(0.01),
-            Side::BID,
-            contracts) - hedgeCost;
-    }
-
-    Real PriceBinaryBid()
-    {
-        std::vector<OptionContract> contracts;
-        contracts.push_back(OptionContract::BinaryCall(timeToExpiry, strike, 1.0));
-
-        return PricePortfolio(
-            minVol,
-            maxVol,
-            rate,
-            price,
-            price * Real(2),
-            Real(1),
-            Real(0.01),
-            Side::BID,
-            contracts);
-    }
-#endif
 
     class Stopwatch
     {
@@ -179,42 +138,50 @@ int main()
     }
 
 
-#if 0
     nlopt::opt optimizer(nlopt::GN_DIRECT, 2);
     
-    FiniteDifferencePricer hedgedBinaryPricer(
-        minVol,
-        maxVol,
-        rate,
-        price * Real(2),
-        201); // TODO: Adjust this after fixing pricer logic
-
-
-    const BinaryCall binCall(timeToExpiry, strike, 1.0);
-    const Call hedge1(timeToExpiry, overhedgeStrike, x0);
-    const Call hedge2(timeToExpiry, strike, x1);
-
-    hedgedBinaryPricer.AddContract(&binCall);
-    hedgedBinaryPricer.AddContract(&hedge1);
-    hedgedBinaryPricer.AddContract(&hedge2);
-
-    auto objectivFunc = [] (std::vector<double> const& x, std::vector<double>&, void* pricer_) -> double
+    class HedgedPricer : boost::noncopyable
     {
-        auto& pricer = *reinterpret_cast<FiniteDifferencePricer*>(pricer_);
+    public:
+        HedgedPricer()
+            : mBinCall(timeToExpiry, strike, Real(1))
+            , mHedge1(timeToExpiry, overhedgeStrike, Real(0))
+            , mHedge2(timeToExpiry, strike, Real(0))
+            , mFdPricer(minVol, maxVol, rate, price * Real(2), 201) // TOOD: Adjust price steps after fixing pricer logic
+            , mHedge1Price(BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike).call)
+            , mHedge2Price(BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike).call)
+        {
+            mFdPricer.AddContract(&mBinCall);
+            mFdPricer.AddContract(&mHedge1);
+            mFdPricer.AddContract(&mHedge2);
+        }
 
-        auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
-        auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
-        Real const hedgeCost = prices1.call * x0 + prices2.call * x1;
+        static double ObjectiveFunc(std::vector<double> const& x, std::vector<double>&, void* this_)
+        {
+            return reinterpret_cast<HedgedPricer*>(this_)->Evaluate((Real)x[0], (Real)x[1]);
+        }
 
-        return pricer.Valuate(price, Side::BID) - hedgeCost;
-        /*
-        Real const value = PriceHedgedBinaryBid((Real)x[0], (Real)x[1]);
-        return (double)value;
-        */
+        Real Evaluate(Real const x0, Real const x1)
+        {
+            Real const hedgeCost = mHedge1Price * x0 + mHedge2Price * x1;
+            mHedge1.multiplier = x0;
+            mHedge2.multiplier = x1;
+            return mFdPricer.Valuate(price, Side::BID) - hedgeCost;
+        }
+
+    private:
+        BinaryCall mBinCall;
+        Call mHedge1;
+        Call mHedge2;
+        FiniteDifferencePricer mFdPricer;
+        Real const mHedge1Price;
+        Real const mHedge2Price;
     };
 
+    HedgedPricer hedgedPricer;
+
     // optimizer.set_min_objective(objectivFunc, nullptr);
-    optimizer.set_max_objective(objectivFunc, nullptr);
+    optimizer.set_max_objective(&HedgedPricer::ObjectiveFunc, &hedgedPricer);
     optimizer.set_lower_bounds(std::vector<double>(2, -1.0));
     optimizer.set_upper_bounds(std::vector<double>(2, 1.0));
     optimizer.set_maxeval(1000);
@@ -232,14 +199,14 @@ int main()
         std::cout << "Hedge Qty:     " << x[1] << std::endl;
         std::cout << "Result:        " << result << std::endl;
 
-        Real const bid = PriceBinaryBid();
-        Real const hedgedBid = PriceHedgedBinaryBid((Real)x[0], (Real)x[1]);
+        // Real const bid = PriceBinaryBid();
+        Real const hedgedBid = hedgedPricer.Evaluate((Real)x[0], (Real)x[1]);
 
         auto const prices1  = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike);
         auto const prices2 = BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike);
         Real const hedgeCost = prices1.call * (Real)x[0] + prices2.call * (Real)x[1];
 
-        std::cout << "Bid:           " << bid << std::endl;
+        // std::cout << "Bid:           " << bid << std::endl;
         std::cout << "Hedged bid:    " << hedgedBid << std::endl;
         std::cout << "hedge1 price:  " << prices1.call << std::endl;
         std::cout << "hedge2 price:  " << prices2.call << std::endl;
@@ -251,7 +218,6 @@ int main()
     {
         std::cout << "Error: " << e.what() << std::endl;
     }
-#endif
 
     return 0;
 }

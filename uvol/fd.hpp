@@ -50,27 +50,6 @@ namespace CqfProject
         ASK
     };
 
-    std::tuple<Real, Real> PricePortfolio(
-        Real minVol,
-        Real maxVol,
-        Real rate,
-        Real currentPrice,
-        Real maxPrice,
-        Real targetDeltaPrice,
-        Real targetDeltaTime,
-        std::vector<OptionContract> const& contracts);
-
-    Real PricePortfolio(
-        Real minVol,
-        Real maxVol,
-        Real rate,
-        Real currentPrice,
-        Real maxPrice,
-        Real targetDeltaPrice,
-        Real targetDeltaTime,
-        Side side,
-        std::vector<OptionContract> const& contracts);
-
     class FiniteDifferencePricer
     {
     public:
