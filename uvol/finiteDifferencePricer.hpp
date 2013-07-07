@@ -1,14 +1,13 @@
-#ifndef UVOL_FD_HPP
-#define UVOL_FD_HPP
+#ifndef UVOL_FINITE_DIFFERENCE_PRICER_HPP
+#define UVOL_FINITE_DIFFERENCE_PRICER_HPP
+
+#include "types.hpp"
 
 #include <cstdint>
-#include <functional>
-#include <tuple>
 #include <vector>
 
 namespace CqfProject
 {
-    typedef double Real;
 
     struct OptionContract
     {

@@ -1,4 +1,4 @@
-#include "fd.hpp"
+#include "finiteDifferencePricer.hpp"
 
 #include <algorithm>
 #include <cassert>

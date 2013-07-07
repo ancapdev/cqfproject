@@ -1,8 +1,9 @@
-#include "fd.hpp"
+#include "blackScholes.hpp"
+#include "finiteDifferencePricer.hpp"
+#include "stopwatch.hpp"
 
 #include "nlopt.hpp"
 
-#include <boost/math/distributions/normal.hpp>
 #include <boost/noncopyable.hpp>
 
 #include <cstdint>
@@ -11,35 +12,6 @@
 
 namespace CqfProject
 {
-    Real Phi(Real x)
-    {
-        return (Real)boost::math::cdf(boost::math::normal(), x);
-    }
-
-    struct PutCallPair
-    {
-        Real call;
-        Real put;
-    };
-
-    PutCallPair BlackScholesPutCall(
-        Real vol,
-        Real rate,
-        Real timeToExpiry,
-        Real price,
-        Real strike)
-    {
-        Real const d1 = (Real(1) / (vol * std::sqrt(timeToExpiry))) * (std::log(price / strike) + (rate + Real(0.5) * vol * vol) * timeToExpiry);
-        Real const d2 = d1 - vol * timeToExpiry;
-
-        PutCallPair values;
-        values.call = Phi(d1) * price - Phi(d2) * strike * std::exp(-rate * timeToExpiry);
-        values.put = strike * std::exp(-rate * timeToExpiry) - price + values.call;
-        // std::cout << "Call @ " << strike << ": " << values.call << std::endl;
-        return values;
-    }
-
-
     Real const rate = 0.05;
     Real const price = 100.0;
     Real const strike = 100.0;
@@ -49,41 +21,6 @@ namespace CqfProject
     Real const maxVol = 0.30;
     Real const impliedVol = 0.20;
     Real const timeToExpiry = 1.0;
-
-    class Stopwatch
-    {
-    public:
-        void Start()
-        {
-            mStart = std::chrono::high_resolution_clock::now();
-        }
-
-        void Stop()
-        {
-            mStop = std::chrono::high_resolution_clock::now();
-        }
-
-        std::int64_t GetElapsedNanoseconds() const
-        {
-            return std::chrono::duration_cast<std::chrono::nanoseconds>(mStop - mStart).count();
-        }
-
-        std::int64_t GetElapsedMicroseconds() const
-        {
-            return std::chrono::duration_cast<std::chrono::microseconds>(mStop - mStart).count();
-        }
-
-        std::int64_t GetElapsedMilliseconds() const
-        {
-            return std::chrono::duration_cast<std::chrono::milliseconds>(mStop - mStart).count();
-        }
-
-    private:
-        typedef std::chrono::high_resolution_clock::time_point TimePoint;
-
-        TimePoint mStart;
-        TimePoint mStop;
-    };
 }
 
 int main()

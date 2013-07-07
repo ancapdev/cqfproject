@@ -1,6 +1,9 @@
 add_executable(uvol
-  fd.cpp
-  fd.hpp
-  main.cpp)
+  blackScholes.hpp
+  finiteDifferencePricer.cpp
+  finiteDifferencePricer.hpp
+  main.cpp
+  stopwatch.hpp
+  types.hpp)
   
-  target_link_libraries(uvol nlopt)
+target_link_libraries(uvol nlopt)
