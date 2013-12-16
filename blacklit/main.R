@@ -1,4 +1,4 @@
-s <- read.csv("Symbols.csv", as.is=T)
+library(quantmod)
 
-data <- new.env()
-getSymbols(s$Symbol, env=data, auto.assign=T)
+source("download.R")
+source("analyze.R")
