@@ -31,9 +31,9 @@ int main()
 
     Stopwatch stopwatch;
     {
-        BinaryCall const binCall(timeToExpiry, strike, 1.0);
-        Call const hedge1(timeToExpiry, overhedgeStrike, -hedgeQty);
-        Call const hedge2(timeToExpiry, strike, hedgeQty);
+        OptionContract const binCall(OptionContract::Type::BINARY_CALL, timeToExpiry, strike, 1.0);
+        OptionContract const hedge1(OptionContract::Type::CALL, timeToExpiry, overhedgeStrike, -hedgeQty);
+        OptionContract const hedge2(OptionContract::Type::CALL, timeToExpiry, strike, hedgeQty);
 
         FiniteDifferencePricer pricer(
             minVol,
@@ -42,7 +42,7 @@ int main()
             price * Real(2),
             201); // TODO: Adjust this after fixing pricer logic
 
-        pricer.AddContract(&binCall);
+        pricer.AddContract(binCall);
         
         stopwatch.Start();
         Real const bid = pricer.Valuate(price, Side::BID);
@@ -53,8 +53,8 @@ int main()
         std::cout << "Unhedged bid: " << bid << std::endl;
         std::cout << "Unhedged ask: " << ask << std::endl;
 
-        pricer.AddContract(&hedge1);
-        pricer.AddContract(&hedge2);
+        pricer.AddContract(hedge1);
+        pricer.AddContract(hedge2);
 
         stopwatch.Start();
         Real const hedgedBid = pricer.Valuate(price, Side::BID);
@@ -81,16 +81,16 @@ int main()
     {
     public:
         HedgedPricer()
-            : mBinCall(timeToExpiry, strike, Real(1))
-            , mHedge1(timeToExpiry, overhedgeStrike, Real(0))
-            , mHedge2(timeToExpiry, strike, Real(0))
+            : mBinCall(OptionContract::Type::BINARY_CALL, timeToExpiry, strike, Real(1))
+            , mHedge1(OptionContract::Type::CALL, timeToExpiry, overhedgeStrike, Real(0))
+            , mHedge2(OptionContract::Type::CALL, timeToExpiry, strike, Real(0))
             , mFdPricer(minVol, maxVol, rate, price * Real(2), 201) // TOOD: Adjust price steps after fixing pricer logic
             , mHedge1Price(BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, overhedgeStrike).call)
             , mHedge2Price(BlackScholesPutCall(impliedVol, rate, timeToExpiry, price, strike).call)
         {
-            mFdPricer.AddContract(&mBinCall);
-            mFdPricer.AddContract(&mHedge1);
-            mFdPricer.AddContract(&mHedge2);
+            mFdPricer.AddContract(mBinCall);
+            mFdPricer.AddContract(mHedge1);
+            mFdPricer.AddContract(mHedge2);
         }
 
         static double ObjectiveFunc(std::vector<double> const& x, std::vector<double>&, void* this_)
@@ -107,9 +107,9 @@ int main()
         }
 
     private:
-        BinaryCall mBinCall;
-        Call mHedge1;
-        Call mHedge2;
+        OptionContract mBinCall;
+        OptionContract mHedge1;
+        OptionContract mHedge2;
         FiniteDifferencePricer mFdPricer;
         Real const mHedge1Price;
         Real const mHedge2Price;

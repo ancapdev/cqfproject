@@ -1501,7 +1501,15 @@ L130:
   i__1 = nact;
   for (k = 1; k <= i__1; ++k) {
     d__1 = 0., d__2 = vmultc[k] - ratio * vmultd[k];
-    vmultc[k] = MAX2(d__1,d__2);
+   
+    // VC12 C1001 internal compiler error workaround
+    // BEGIN
+    vmultc[k] = d__2;
+    if (d__1 > d__2)
+        vmultc[k] = d__1;
+    // ORIGINAL
+    // vmultc[k] = MAX2(d__1,d__2);
+    // END
   }
   if (icon < nact) {
     isave = iact[icon];

@@ -5,6 +5,21 @@ cxxflags <- paste0("-std=c++0x -Doverride= -I", getwd())
 Sys.setenv("PKG_CXXFLAGS"=cxxflags)
 sourceCpp("Rinterface.cpp")
 
+
+options <- data.frame(
+  type = "call",
+  expiry = 1.0,
+  qty = 1.0,
+  strike = 100.0);
+
+PriceOptions(0.1, 0.3, 0.05, 100.0, options)
+
+# Compare with RQuantLib price
+EuropeanOption("call", 100.0, 100.0, 0.0, 0.05, 1.0, 0.2)
+
+
+
+
 minVol <- 0.1
 maxVol <- 0.3
 impliedVol <- 0.2
@@ -14,6 +29,7 @@ underlyingPrice <- 100.0
 riskFreeRate <- 0.05
 
 expiry <- 1.0
+
 
 value <- function(
   overhedgeStrike,

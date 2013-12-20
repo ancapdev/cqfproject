@@ -1,6 +1,5 @@
 add_executable(uvol
   blackScholes.hpp
-  finiteDifferencePricer.cpp
   finiteDifferencePricer.hpp
   main.cpp
   stopwatch.hpp

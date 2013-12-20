@@ -13,37 +13,47 @@ namespace CqfProject
 {
     struct OptionContract
     {
-        OptionContract(Real expiry, Real multiplier)
-            : expiry(expiry)
+        enum class Type
+        {
+            PUT,
+            CALL,
+            BINARY_PUT,
+            BINARY_CALL
+        };
+
+        OptionContract(Type type, Real expiry, Real strike, Real multiplier)
+            : type(type)
+            , expiry(expiry)
+            , strike(strike)
             , multiplier(multiplier)
         {}
 
-        virtual Real CalculatePayoff(Real price) const = 0;
-
-        Real expiry;
-        Real multiplier;
-    };
-
-    template<typename PayoffFunc>
-    struct SimpleContract : OptionContract, PayoffFunc
-    {
-        SimpleContract(Real expiry, Real strike, Real multiplier) : OptionContract(expiry, multiplier), strike(strike) {}
-
-        virtual Real CalculatePayoff(Real price) const override
+        Real CalculatePayoff(Real price) const
         {
-            return (*this)(strike, price);
+            switch (type)
+            {
+            case Type::PUT:
+                return std::max(strike - price, Real(0));                
+
+            case Type::CALL:
+                return std::max(price - strike, Real(0));
+
+            case Type::BINARY_PUT:
+                return price < strike ? 1.0 : 0.0;
+
+            case Type::BINARY_CALL:
+                return price > strike ? 1.0 : 0.0;
+
+            default:
+                abort();
+            }
         }
 
+        Type type;
+        Real expiry;
         Real strike;
+        Real multiplier;
     };
-
-    struct CallPayoff       { Real operator () (Real strike, Real price) const { return std::max(price - strike, Real(0)); } };
-    struct PutPayoff        { Real operator () (Real strike, Real price) const { return std::max(strike - price, Real(0)); } };
-    struct BinarYCallPayoff { Real operator () (Real strike, Real price) const { return price > strike ? 1.0 : 0.0; } };
-
-    typedef SimpleContract<CallPayoff> Call;
-    typedef SimpleContract<PutPayoff> Put;
-    typedef SimpleContract<BinarYCallPayoff> BinaryCall;
 
     enum class Side
     {
@@ -79,7 +89,7 @@ namespace CqfProject
             mScratch.resize(mNumPriceSteps * 2, Real(0));
         }
 
-        void AddContract(OptionContract const* contract)
+        void AddContract(OptionContract const& contract)
         {
             mContracts.push_back(contract);
         }
@@ -87,7 +97,7 @@ namespace CqfProject
         Real Valuate(Real price, Side side)
         {
             // Maintain contracts sorted by descending expiry
-            auto const expiryGreater = [] (OptionContract const* a, OptionContract const* b) { return a->expiry > b->expiry; };
+            auto const expiryGreater = [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; };
             if (!std::is_sorted(mContracts.begin(), mContracts.end(), expiryGreater))
                 std::sort(mContracts.begin(), mContracts.end(), expiryGreater);
 
@@ -146,14 +156,14 @@ namespace CqfProject
             // March from last expiry to next expiry or to 0
             for (std::size_t contractIndex = 0; contractIndex < mContracts.size(); ++contractIndex)
             {
-                OptionContract const& contract = *mContracts[contractIndex];
+                OptionContract const& contract = mContracts[contractIndex];
 
                 // Add payoffs
                 for (std::uint32_t i = 0; i < numPriceSteps; ++i)
                     current[i] += contract.CalculatePayoff(prices[i]) * contract.multiplier;
 
                 // Find next expiry and time to it
-                Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1]->expiry;
+                Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1].expiry;
                 Real const timeToNextExpiry = contract.expiry - nextExpiry;
 
                 // If contracts are too close together, assume at same expiry
@@ -215,7 +225,7 @@ namespace CqfProject
         Real mMaxPrice;
         // TODO: Fix so grid size is numPriceSteps + 1
         std::size_t mNumPriceSteps;
-        std::vector<OptionContract const*> mContracts;
+        std::vector<OptionContract> mContracts;
 
         //
         // Inferred parameters
