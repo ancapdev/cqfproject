@@ -3,7 +3,8 @@ library(RQuantLib)
 
 cxxflags <- paste0("-std=c++0x -Doverride= -I", getwd())
 Sys.setenv("PKG_CXXFLAGS"=cxxflags)
-sourceCpp("Rinterface.cpp")
+sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
+# benchmark(PriceOptions(0.1, 0.3, 0.05, 100.0, options))
 
 
 options <- data.frame(
@@ -12,10 +13,10 @@ options <- data.frame(
   qty = 1.0,
   strike = 100.0);
 
-PriceOptions(0.1, 0.3, 0.05, 100.0, options)
+print(PriceOptions(0.2, 0.2, 0.05, 100.0, options))
 
 # Compare with RQuantLib price
-EuropeanOption("call", 100.0, 100.0, 0.0, 0.05, 1.0, 0.2)
+print(EuropeanOption("call", 100.0, 100.0, 0.0, 0.05, 1.0, 0.2))
 
 
 
