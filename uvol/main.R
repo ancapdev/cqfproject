@@ -1,6 +1,7 @@
 library(Rcpp)
 library(RQuantLib)
 library(plyr)
+library(nloptr)
 
 cxxflags <- paste0("-std=c++0x -Doverride= -I", getwd())
 Sys.setenv("PKG_CXXFLAGS"=cxxflags)
@@ -142,6 +143,44 @@ OptimizeHedge2 <- function(scenario, exotics, side) {
 
 OptimizeHedge2(scenario, exotics, "bid")
 OptimizeHedge2(scenario, exotics, "ask")
+
+
+OptimizeHedge3 <- function(scenario, exotics, side) {
+  multiplier = if (side == "bid") -1.0 else 1.0
+  
+  nloptr(
+    c(-1.0, 1.0, 98.0, 102.0),
+    function(q) {
+      hedges <- data.frame(
+        type = c("call", "call"),
+        expiry = c(1.0, 1.0),
+        qty = q[1:2],
+        # strike = c(95.0, 100.0),
+        strike = q[3:4],
+        stringsAsFactors = FALSE);
+      
+      options <- rbind(exotics, hedges)
+      
+      hedgeCost <- sum(
+        mapply(
+          function(type, strike, expiry) PriceEuropeanBS(scenario, type, strike, expiry),
+          hedges$type, hedges$strike, hedges$expiry,
+          USE.NAMES = FALSE) * hedges$qty)
+      
+      portfolioValue <- PriceEuropeanUncertain(scenario, options)
+      
+      return(multiplier * (portfolioValue[side] - hedgeCost))
+    },
+    # TODO: use strik relative bounds
+    lb = c(-2.0, 0.0, 90.0, 90.0),
+    ub = c(0.0, 2.0, 110.0, 110.0),
+    opts = list(
+      algorithm="NLOPT_GN_DIRECT_L",
+      maxeval=1000))
+}
+
+OptimizeHedge3(scenario, exotics, "bid")
+OptimizeHedge3(scenario, exotics, "ask")
 
 
 
