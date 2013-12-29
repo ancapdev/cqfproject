@@ -38,62 +38,68 @@ print(portfolioValue)
 print(unhedgedValue)
 print(hedgedValue)
 
+scenario <-
+  list(
+    minVol = 0.1,
+    maxVol = 0.3,
+    impliedVol = 0.2,
+    underlyingPrice = 100.0,
+    riskFreeRate = 0.05)
 
-optimizeHedge <- function(exotics) {
-  portfolioBidAskHedge <- function(q) {
-    hedges <- data.frame(
-      type = c("call", "call"),
-      expiry = c(1.0, 1.0),
-      qty = q,
-      strike = c(95.0, 100.0),
-      stringsAsFactors = FALSE);
-    
-    options <- rbind(exotics, hedges)
-    
-    hedgeCost <- sum(
-      mapply(
-        function(type, strike, expiry) { EuropeanOption(type, 100.0, strike, 0.0, 0.05, expiry, 0.2)$value },
-        hedges$type, hedges$strike, hedges$expiry,
-        USE.NAMES = FALSE) * hedges$qty)
-    
-    portfolioValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, options)
-    
-    return(c(portfolioValue, hedgeCost))
-  }
-    
-  bidOpt <- nlm(
-    function(q) {
-      bidAskHedge <- portfolioBidAskHedge(q)
-      # Maximize bid by minimizing negative bid
-      return(-(bidAskHedge[1] - bidAskHedge[3]))
-      },
-    c(1.0, -1.0))
-      
-  askOpt <- nlm(
-    function(q) {
-      bidAskHedge <- portfolioBidAskHedge(q)
-      # Minimize ask
-      return(bidAskHedge[2] - bidAskHedge[3])
-    },
-    c(0.0, 0.0))
-  
-  # print(bidOpt)
-  # print(askOpt)
-  return(rbind(bidOpt, askOpt))
+strike <- 100.0
+expiry <- 1.0
+
+PriceEuropeanBS <- function(scenario, type, strike, expiry) {
+  EuropeanOption(
+    type,
+    scenario$underlyingPrice,
+    strike,
+    0.0,
+    scenario$riskFreeRate,
+    expiry,
+    scenario$impliedVol)$value
 }
 
-optimizeHedge(exotics)
+PriceEuropeanUncertain <- function(scenario, options) {
+  PriceOptions(
+    scenario$minVol,
+    scenario$maxVol,
+    scenario$riskFreeRate,
+    scenario$underlyingPrice,
+    options)
+}
+
+OptimizeHedge <- function(scenario, exotics, side) {
+  multiplier = if (side == "bid") -1.0 else 1.0 
+  nlm(
+    function(q) {
+      hedges <- data.frame(
+        type = c("call", "call"),
+        expiry = c(1.0, 1.0),
+        qty = q,
+        strike = c(95.0, 100.0),
+        stringsAsFactors = FALSE);
+      
+      options <- rbind(exotics, hedges)
+      
+      hedgeCost <- sum(
+        mapply(
+          function(type, strike, expiry) PriceEuropeanBS(scenario, type, strike, expiry),
+          hedges$type, hedges$strike, hedges$expiry,
+          USE.NAMES = FALSE) * hedges$qty)
+      
+      portfolioValue <- PriceEuropeanUncertain(scenario, options)
+
+      return(multiplier * (portfolioValue[side] - hedgeCost))
+    },
+    c(0.0, 0.0))
+}
+
+OptimizeHedge(scenario, exotics, "bid")
+OptimizeHedge(scenario, exotics, "ask")
 
 
-minVol <- 0.1
-maxVol <- 0.3
-impliedVol <- 0.2
-strike <- 100.0
-overhedgeStrike <- 90.0
-underlyingPrice <- 100.0
-riskFreeRate <- 0.05
-
-expiry <- 1.0
+overhedgeStrike = 90.0
 
 
 value <- function(
