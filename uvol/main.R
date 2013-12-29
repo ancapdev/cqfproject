@@ -38,39 +38,52 @@ print(portfolioValue)
 print(unhedgedValue)
 print(hedgedValue)
 
-minAsk <- nlm(
-  function(q) {
+
+optimizeHedge <- function(exotics) {
+  portfolioBidAskHedge <- function(q) {
     hedges <- data.frame(
       type = c("call", "call"),
       expiry = c(1.0, 1.0),
       qty = q,
       strike = c(95.0, 100.0),
       stringsAsFactors = FALSE);
-
+    
     options <- rbind(exotics, hedges)
-
+    
     hedgeCost <- sum(
       mapply(
         function(type, strike, expiry) { EuropeanOption(type, 100.0, strike, 0.0, 0.05, expiry, 0.2)$value },
         hedges$type, hedges$strike, hedges$expiry,
         USE.NAMES = FALSE) * hedges$qty)
-
+    
     portfolioValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, options)
     
-    # print(portfolioValue)
-    # print(hedgeCost)
+    return(c(portfolioValue, hedgeCost))
+  }
     
-    # Minimize ask
-    # return(portfolioValue[2] - hedgeCost)
-    
-    # Maximize bid
-    return(-(portfolioValue[1] - hedgeCost))
-  },
-  c(0,0)
-  # stepmax = 0.1
-  )
+  bidOpt <- nlm(
+    function(q) {
+      bidAskHedge <- portfolioBidAskHedge(q)
+      # Maximize bid by minimizing negative bid
+      return(-(bidAskHedge[1] - bidAskHedge[3]))
+      },
+    c(1.0, -1.0))
+      
+  askOpt <- nlm(
+    function(q) {
+      bidAskHedge <- portfolioBidAskHedge(q)
+      # Minimize ask
+      return(bidAskHedge[2] - bidAskHedge[3])
+    },
+    c(0.0, 0.0))
+  
+  # print(bidOpt)
+  # print(askOpt)
+  return(rbind(bidOpt, askOpt))
+}
 
-print(minAsk)
+optimizeHedge(exotics)
+
 
 minVol <- 0.1
 maxVol <- 0.3
