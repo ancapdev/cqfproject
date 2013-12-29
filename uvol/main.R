@@ -1,5 +1,6 @@
 library(Rcpp)
 library(RQuantLib)
+library(plyr)
 
 cxxflags <- paste0("-std=c++0x -Doverride= -I", getwd())
 Sys.setenv("PKG_CXXFLAGS"=cxxflags)
@@ -7,18 +8,35 @@ sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
 # benchmark(PriceOptions(0.1, 0.3, 0.05, 100.0, options))
 
 
-options <- data.frame(
-  type = "call",
+exotics <- data.frame(
+  type = "bcall",
   expiry = 1.0,
   qty = 1.0,
-  strike = 100.0);
+  strike = 100.0,
+  stringsAsFactors = FALSE)
 
-print(PriceOptions(0.2, 0.2, 0.05, 100.0, options))
+hedges <- data.frame(
+  type = c("call", "call"),
+  expiry = c(1.0, 1.0),
+  qty = c(1.0, -1.0),
+  strike = c(100.0, 110),
+  stringsAsFactors = FALSE);
 
-# Compare with RQuantLib price
-print(EuropeanOption("call", 100.0, 100.0, 0.0, 0.05, 1.0, 0.2))
+options <- rbind(exotics, hedges)
 
+hedgeCost <- sum(
+  mapply(
+    function(type, strike, expiry) { EuropeanOption(type, 100.0, strike, 0.0, 0.05, expiry, 0.2)$value },
+    hedges$type, hedges$strike, hedges$expiry,
+    USE.NAMES = FALSE) * hedges$qty)
 
+portfolioValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, options)
+unhedgedValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, exotics)
+hedgedValue <- portfolioValue - hedgeCost
+
+print(portfolioValue)
+print(unhedgedValue)
+print(hedgedValue)
 
 
 minVol <- 0.1
