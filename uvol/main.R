@@ -8,36 +8,12 @@ Sys.setenv("PKG_CXXFLAGS"=cxxflags)
 sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
 # benchmark(PriceOptions(0.1, 0.3, 0.05, 100.0, options))
 
-
-exotics <- data.frame(
+exotic <- data.frame(
   type = "bcall",
   expiry = 1.0,
   qty = 1.0,
   strike = 100.0,
   stringsAsFactors = FALSE)
-
-hedges <- data.frame(
-  type = c("call", "call"),
-  expiry = c(1.0, 1.0),
-  qty = c(1.0, -1.0),
-  strike = c(100.0, 110),
-  stringsAsFactors = FALSE);
-
-options <- rbind(exotics, hedges)
-
-hedgeCost <- sum(
-  mapply(
-    function(type, strike, expiry) { EuropeanOption(type, 100.0, strike, 0.0, 0.05, expiry, 0.2)$value },
-    hedges$type, hedges$strike, hedges$expiry,
-    USE.NAMES = FALSE) * hedges$qty)
-
-portfolioValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, options)
-unhedgedValue <- PriceOptions(0.1, 0.3, 0.05, 100.0, exotics)
-hedgedValue <- portfolioValue - hedgeCost
-
-print(portfolioValue)
-print(unhedgedValue)
-print(hedgedValue)
 
 scenario <-
   list(
@@ -46,9 +22,6 @@ scenario <-
     impliedVol = 0.2,
     underlyingPrice = 100.0,
     riskFreeRate = 0.05)
-
-strike <- 100.0
-expiry <- 1.0
 
 PriceEuropeanBS <- function(scenario, type, strike, expiry) {
   EuropeanOption(
@@ -81,71 +54,97 @@ ConstructHedges <- function(exotic, quantities, strikes) {
     stringsAsFactors = FALSE);
 }
 
+CalculateHedgeCost <- function(scenario, hedges) {
+  sum(
+    mapply(
+      function(type, strike, expiry) PriceEuropeanBS(scenario, type, strike, expiry),
+      hedges$type, hedges$strike, hedges$expiry,
+      USE.NAMES = FALSE) * hedges$qty)
+}
+
 CreateObjectiveFunction <- function(scenario, exotic, side) {
   multiplier = if (side == "bid") -1.0 else 1.0
   
   function(q) {
     hedges <- ConstructHedges(exotic, q[1:2], q[3:4])
     options <- rbind(exotic, hedges)
-    
-    hedgeCost <- sum(
-      mapply(
-        function(type, strike, expiry) PriceEuropeanBS(scenario, type, strike, expiry),
-        hedges$type, hedges$strike, hedges$expiry,
-        USE.NAMES = FALSE) * hedges$qty)
-    
+
+    hedgeCost <- CalculateHedgeCost(scenario, hedges)    
     portfolioValue <- PriceEuropeanUncertain(scenario, options)
     
     return(multiplier * (portfolioValue[side] - hedgeCost))
   }  
 }
 
-OptimizeHedge <- function(scenario, exotics, side) {
+CalculateLowerBounds <- function(exotic) {
+  c(-2.0, 0.0, exotic$strike * 0.9, exotic$strike * 0.9)
+}
+
+CalculateUpperBounds <- function(exotic) {
+  c(0.0, 2.0, exotic$strike * 1.1, exotic$strike * 1.1)
+}
+
+CalculateInitialGuess <- function(exotic) {
+  c(-1.0, 1.0, exotic$strike * 0.95, exotic$strike * 1.05)
+}
+
+OptimizeHedge <- function(scenario, exotic, side) {
   # Doesn't find optimial solution starting at 100, 100
   # Much better at 95, 100
   # TOOD: use different optimization algorithm!
   # TODO: must have constraints on strike ranges
   # TODO: should bound search space by constraining quantities to [-1, 1]
   nlm(
-    CreateObjectiveFunction(scenario, exotics, side),
-    c(0.0, 0.0, 98.0, 102.0),
-    typsize=c(0.5, 0.5, 100.0, 100.0),
+    CreateObjectiveFunction(scenario, exotic, side),
+    CalculateInitialGuess(exotic),
     iterlim=200)
 }
 
-OptimizeHedge(scenario, exotics, "bid")
-OptimizeHedge(scenario, exotics, "ask")
+OptimizeHedge(scenario, exotic, "bid")
+OptimizeHedge(scenario, exotic, "ask")
 
-OptimizeHedge2 <- function(scenario, exotics, side) {
-  # TODO: use strik relative bounds  
+OptimizeHedge2 <- function(scenario, exotic, side) {
   optim(
-    c(-1.0, 1.0, 98.0, 102.0),
-    CreateObjectiveFunction(scenario, exotics, side),
+    CalculateInitialGuess(exotic),
+    CreateObjectiveFunction(scenario, exotic, side),
     method = "L-BFGS-B",
-    lower = c(-2.0, 0.0, 90.0, 90.0),
-    upper = c(0.0, 2.0, 110.0, 110.0))
+    lower = CalculateLowerBounds(exotic),
+    upper = CalculateUpperBounds(exotic))
 }
 
-OptimizeHedge2(scenario, exotics, "bid")
-OptimizeHedge2(scenario, exotics, "ask")
+OptimizeHedge2(scenario, exotic, "bid")
+OptimizeHedge2(scenario, exotic, "ask")
 
-
-OptimizeHedge3 <- function(scenario, exotics, side) {  
-  # TODO: use strik relative bounds
+OptimizeHedge3 <- function(scenario, exotic, side) {  
   nloptr(
-    c(-1.0, 1.0, 98.0, 102.0),
-    CreateObjectiveFunction(scenario, exotics, side),
-    lb = c(-2.0, 0.0, 90.0, 90.0),
-    ub = c(0.0, 2.0, 110.0, 110.0),
+    CalculateInitialGuess(exotic),
+    CreateObjectiveFunction(scenario, exotic, side),
+    lb = CalculateLowerBounds(exotic),
+    ub = CalculateUpperBounds(exotic),
     opts = list(
       algorithm="NLOPT_GN_DIRECT_L",
       maxeval=1000))
 }
 
-OptimizeHedge3(scenario, exotics, "bid")
-OptimizeHedge3(scenario, exotics, "ask")
+bidOpt <- OptimizeHedge3(scenario, exotic, "bid")
+askOpt <- OptimizeHedge3(scenario, exotic, "ask")
 
+Verify <- function(scenario, exotic, quantities, strikes) {
+  hedges <- ConstructHedges(exotic, quantities, strikes)
+  options <- rbind(exotic, hedges)
+  hedgeCost <- CalculateHedgeCost(scenario, hedges)    
+  portfolioValue <- PriceEuropeanUncertain(scenario, options)
+  exoticValue <- PriceEuropeanUncertain(scenario, exotic)
+  print(quantities)
+  print(strikes)
+  print(exoticValue)
+  print(portfolioValue)
+  print(hedgeCost)
+  print(portfolioValue - hedgeCost)
+}
 
+Verify(scenario, exotic, bidOpt$solution[1:2], bidOpt$solution[3:4])
+Verify(scenario, exotic, askOpt$solution[1:2], askOpt$solution[3:4])
 
 
 overhedgeStrike = 90.0
