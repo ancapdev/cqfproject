@@ -27,6 +27,28 @@ scenario <-
     underlyingPrice = 100.0,
     riskFreeRate = 0.05)
 
+
+
+
+Verify <- function(scenario, exotic, quantities, strikes) {
+  hedges <- ConstructHedges(exotic, quantities, strikes)
+  options <- rbind(exotic, hedges)
+  hedgeCost <- CalculateHedgeCost(scenario, hedges)    
+  portfolioValue <- PriceEuropeanUncertain(scenario, options)
+  portfolioSpread <- portfolioValue[2] - portfolioValue[1]
+  exoticValue <- PriceEuropeanUncertain(scenario, exotic)
+  exoticSpread <- exoticValue[2] - exoticValue[1]
+  cat("Quantities: ", quantities, "\n")
+  cat("Strikes:    ", strikes, "\n")
+  cat("Exotic Value: ", exoticValue, "\n")
+  cat("Portfolio Value: ", portfolioValue, "\n")
+  cat("Hedge Cost: ", hedgeCost, "\n")
+  cat("Hedged Exotic Value: ", portfolioValue - hedgeCost, "\n")
+  cat("Portfolio Spread: ", portfolioSpread, "\n")
+  cat("Exotic Spread:", exoticSpread, "\n")
+  cat("Spread Improvement:", (exoticSpread - portfolioSpread) / exoticSpread, "\n")
+}
+
 PriceEuropeanBS <- function(scenario, type, strike, expiry) {
   EuropeanOption(
     type,
@@ -127,32 +149,38 @@ OptimizeHedge3 <- function(scenario, exotic, side) {
     ub = CalculateUpperBounds(exotic),
     opts = list(
       algorithm="NLOPT_GN_DIRECT_L",
-      maxeval=1000))
+      maxeval=10000))
 }
-
-exotic <- CreateBinaryCall(1.0, 50.0)
 
 bidOpt <- OptimizeHedge3(scenario, exotic, "bid")
 askOpt <- OptimizeHedge3(scenario, exotic, "ask")
 
-
-Verify <- function(scenario, exotic, quantities, strikes) {
-  hedges <- ConstructHedges(exotic, quantities, strikes)
-  options <- rbind(exotic, hedges)
-  hedgeCost <- CalculateHedgeCost(scenario, hedges)    
-  portfolioValue <- PriceEuropeanUncertain(scenario, options)
-  exoticValue <- PriceEuropeanUncertain(scenario, exotic)
-  print(quantities)
-  print(strikes)
-  print(exoticValue)
-  print(portfolioValue)
-  print(hedgeCost)
-  print(portfolioValue - hedgeCost)
-  print(portfolioValue[2] - portfolioValue[1])
-}
-
 Verify(scenario, exotic, bidOpt$solution[1:2], bidOpt$solution[3:4])
 Verify(scenario, exotic, askOpt$solution[1:2], askOpt$solution[3:4])
+
+
+# Optimize spread rather than max(bid) + min(ask) separately
+OptimizeHedge4 <- function(scenario, exotic) {  
+  nloptr(
+    CalculateInitialGuess(exotic),
+    function(q) {
+      hedges <- ConstructHedges(exotic, q[1:2], q[3:4])
+      options <- rbind(exotic, hedges)
+      portfolioValue <- PriceEuropeanUncertain(scenario, options)
+      return(portfolioValue[2] - portfolioValue[1])
+    },
+    lb = CalculateLowerBounds(exotic),
+    ub = CalculateUpperBounds(exotic),
+    opts = list(
+      algorithm="NLOPT_GN_DIRECT_L",
+      maxeval=2000))
+}
+
+
+
+exotic <- CreateBinaryCall(1.0, 50.0)
+opt <- OptimizeHedge4(scenario, exotic)
+Verify(scenario, exotic, opt$solution[1:2], opt$solution[3:4])
 
 
 overhedgeStrike = 90.0
