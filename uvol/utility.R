@@ -46,6 +46,14 @@ CalculateHedgeCost <- function(scenario, hedges) {
       USE.NAMES = FALSE) * hedges$qty)
 }
 
+CalculateHedgedPrice <- function(scenario, exotic, hedgeQuantities, hedgeStrikes) {
+  hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
+  options <- rbind(exotic, hedges)
+  hedgeCost <- CalculateHedgeCost(scenario, hedges)
+  portfolioValue <- PriceEuropeanUncertain(scenario, options)
+  return(portfolioValue - hedgeCost)
+}
+
 Verify <- function(scenario, exotic, quantities, strikes) {
   hedges <- ConstructHedges(exotic, quantities, strikes)
   options <- rbind(exotic, hedges)
