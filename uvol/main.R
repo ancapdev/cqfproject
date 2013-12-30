@@ -55,19 +55,22 @@ wireframe(
 #########################
 
 strikes <- expand.grid(
-  s1 = seq(s[1] * 0.1, s[1] * 2.0, length.out = res),
-  s2 = seq(s[2] * 0.1, s[2] * 2.0, length.out = res))
+  s1 = seq(s[1] * 0.99, s[1] * 1.01, length.out = res),
+  s2 = seq(s[2] * 0.99, s[2] * 1.01, length.out = res))
 
 spread <- apply(
   strikes,
   1,
   function(x) CalculateHedgedSpread(scenario, exotic, q, x))
 
-data <- cbind(strikes, spread)
+data <- cbind(strikes, log(spread))
 
 wireframe(
   spread ~ s1 * s2,
-  data = data)
+  data = data,
+  screen = list(z=45, y=30, z=45, x=-90, y=45),
+  drape = TRUE,
+  pretty = TRUE)
 
 #########################
 
