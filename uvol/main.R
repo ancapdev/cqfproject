@@ -8,12 +8,16 @@ Sys.setenv("PKG_CXXFLAGS"=cxxflags)
 sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
 # benchmark(PriceOptions(0.1, 0.3, 0.05, 100.0, options))
 
-exotic <- data.frame(
-  type = "bcall",
-  expiry = 1.0,
-  qty = 1.0,
-  strike = 100.0,
-  stringsAsFactors = FALSE)
+CreateBinaryCall <- function(expiry, strike) {
+  data.frame(
+    type = "bcall",
+    expiry = expiry,
+    qty = 1.0,
+    strike = strike,
+    stringsAsFactors = FALSE)
+}
+
+exotic <- CreateBinaryCall(1.0, 100.0)
 
 scenario <-
   list(
@@ -126,8 +130,11 @@ OptimizeHedge3 <- function(scenario, exotic, side) {
       maxeval=1000))
 }
 
+exotic <- CreateBinaryCall(1.0, 50.0)
+
 bidOpt <- OptimizeHedge3(scenario, exotic, "bid")
 askOpt <- OptimizeHedge3(scenario, exotic, "ask")
+
 
 Verify <- function(scenario, exotic, quantities, strikes) {
   hedges <- ConstructHedges(exotic, quantities, strikes)
@@ -141,6 +148,7 @@ Verify <- function(scenario, exotic, quantities, strikes) {
   print(portfolioValue)
   print(hedgeCost)
   print(portfolioValue - hedgeCost)
+  print(portfolioValue[2] - portfolioValue[1])
 }
 
 Verify(scenario, exotic, bidOpt$solution[1:2], bidOpt$solution[3:4])
