@@ -29,7 +29,22 @@ OptimizeHedge <- function(scenario, exotic) {
       maxeval=2000))
 }
 
-
+# WIP
+OptimizeHedge2 <- function(scenario, exotic) {  
+  nloptr(
+    c(0, 0),
+    function(q) {
+      hedges <- ConstructHedges(exotic, q[1:2], c(95, 105))
+      options <- rbind(exotic, hedges)
+      portfolioValue <- PriceEuropeanUncertain(scenario, options)
+      return(portfolioValue[2] - portfolioValue[1])
+    },
+    lb = c(-20, -20),
+    ub = c(20, 20),
+    opts = list(
+      algorithm="NLOPT_GN_DIRECT_L",
+      maxeval=2000))
+}
 
 
 #

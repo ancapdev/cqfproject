@@ -61,32 +61,52 @@ namespace CqfProject
         ASK
     };
 
+    enum class Interpolation
+    {
+        LINEAR,
+        CUBIC
+    };
+
     class FiniteDifferencePricer
     {
     public:
+        struct NullOutIt
+        {
+            struct NoAssign
+            {
+                NoAssign& operator = (Real rhs) { return *this; }
+            };
+
+            NoAssign operator * () { return NoAssign(); }
+
+            NullOutIt& operator ++ (int) { return *this; }
+        };
+
         FiniteDifferencePricer(
             Real minVol,
             Real maxVol,
             Real rate,
             Real maxPrice,
-            std::size_t numPriceSteps)
+            std::size_t numPriceSteps,
+            Interpolation interpolation = Interpolation::LINEAR)
             : mMinVol(minVol)
             , mMaxVol(maxVol)
             , mRate(rate)
             , mMaxPrice(maxPrice)
             , mNumPriceSteps(numPriceSteps)
-            , mDeltaPrice(maxPrice / (numPriceSteps - 1))
+            , mInterpolation(interpolation)
+            , mDeltaPrice(maxPrice / numPriceSteps)
               // TODO: Verify stability condition and optimal time step size
             , mTargetDeltaTime(Real(0.99) / (numPriceSteps * numPriceSteps * maxVol * maxVol))
         {
             assert(maxVol >= minVol);
 
             // Cache prices
-            mPrices.reserve(mNumPriceSteps);
-            for (std::size_t i = 0; i < mNumPriceSteps; ++i)
+            mPrices.reserve(mNumPriceSteps + 1);
+            for (std::size_t i = 0; i <= mNumPriceSteps; ++i)
                 mPrices.push_back(i * mDeltaPrice);
 
-            mScratch.resize(mNumPriceSteps * 2, Real(0));
+            mScratch.resize((mNumPriceSteps + 1) * 2, Real(0));
         }
 
         void AddContract(OptionContract const& contract)
@@ -94,7 +114,18 @@ namespace CqfProject
             mContracts.push_back(contract);
         }
 
+        std::vector<Real> const& GetPrices() const
+        {
+            return mPrices;
+        }
+
         Real Valuate(Real price, Side side)
+        {
+            return Valuate(price, side, NullOutIt());
+        }
+
+        template<typename OutIt>
+        Real Valuate(Real price, Side side, OutIt valuesOut)
         {
             // Maintain contracts sorted by descending expiry
             auto const expiryGreater = [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; };
@@ -117,7 +148,8 @@ namespace CqfProject
                         Real const g1 = gamma * minVolSq;
                         Real const g2 = gamma * maxVolSq;
                         return g1 < g2 ? g1 : g2;
-                    });
+                    },
+                    valuesOut);
             }
             else
             {
@@ -129,13 +161,14 @@ namespace CqfProject
                         Real const g1 = gamma * minVolSq;
                         Real const g2 = gamma * maxVolSq;
                         return g1 > g2 ? g1 : g2;
-                    });
+                    },
+                    valuesOut);
             }
         }
 
     private:
-        template<typename VolSqGammaFun>
-        Real ValuateImpl(Real price, VolSqGammaFun const& volSqGammaFun)
+        template<typename VolSqGammaFun, typename OutIt>
+        Real ValuateImpl(Real price, VolSqGammaFun const& volSqGammaFun, OutIt valuesOut)
         {
             std::size_t numPriceSteps = mNumPriceSteps;
             Real const deltaPrice = mDeltaPrice;
@@ -149,8 +182,8 @@ namespace CqfProject
 
             // Initial state
             Real* __restrict current = &mScratch[0];
-            Real* __restrict next = &mScratch[numPriceSteps];
-            for (std::size_t i = 0; i < numPriceSteps; ++i)
+            Real* __restrict next = &mScratch[numPriceSteps + 1];
+            for (std::size_t i = 0; i <= numPriceSteps; ++i)
                 current[i] = Real(0);
 
             // March from last expiry to next expiry or to 0
@@ -159,7 +192,7 @@ namespace CqfProject
                 OptionContract const& contract = mContracts[contractIndex];
 
                 // Add payoffs
-                for (std::uint32_t i = 0; i < numPriceSteps; ++i)
+                for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
                     current[i] += contract.CalculatePayoff(prices[i]) * contract.multiplier;
 
                 // Find next expiry and time to it
@@ -178,8 +211,7 @@ namespace CqfProject
                 for (std::size_t k = 0; k < timeSteps; ++k)
                 {
                     // Main grid
-                    std::size_t const numPriceSteps_1 = numPriceSteps - 1;
-                    for (std::size_t i = 1; i < numPriceSteps_1; ++i)
+                    for (std::size_t i = 1; i < numPriceSteps; ++i)
                     {
                         Real const price = prices[i];
                         Real const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
@@ -191,12 +223,17 @@ namespace CqfProject
                     // Boundaries
                     next[0] = (Real(1) - rate * deltaTime) * current[0];
                     // TODO: check numPriceSteps >= 3
-                    next[numPriceSteps - 1] = Real(2) * next[numPriceSteps - 2] - next[numPriceSteps - 3];
+                    next[numPriceSteps] = Real(2) * next[numPriceSteps - 1] - next[numPriceSteps - 2];
 
                     // next.swap(current);
                     std::swap(next, current);
                 }
             }
+
+
+            // Copy out values
+            for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
+                *valuesOut++ = current[i];
 
             // Find closest point above current price
             auto it = std::upper_bound(mPrices.begin(), mPrices.end(), price);
@@ -210,10 +247,41 @@ namespace CqfProject
                 return current[0];
 
             // Interpolate between prices above and below current price
-            Real const v0 = current[index - 1];
-            Real const v1 = current[index];
-            Real const k = (prices[index] - price) / deltaPrice;
-            return v0 * k + v1 * (Real(1) - k);
+            if (mInterpolation == Interpolation::CUBIC &&
+                index > 1u &&
+                index < mPrices.size() - 1)
+            {
+                Real const v00 = current[index - 2];
+                Real const v0 = current[index - 1];
+                Real const v1 = current[index];
+                Real const v11 = current[index + 1];
+                Real const k = (prices[index] - price) / deltaPrice;
+                return CubicInterpolate(v00, v0, v1, v11, Real(1) - k);
+            }
+            else
+            {
+                Real const v0 = current[index - 1];
+                Real const v1 = current[index];
+                Real const k = (prices[index] - price) / deltaPrice;
+                return v0 * k + v1 * (Real(1) - k);
+            }
+        }
+
+        // TODO: re-style
+        static Real CubicInterpolate(
+            Real y0, Real y1,
+            Real y2, Real y3,
+            Real mu)
+        {
+            Real a0,a1,a2,a3,mu2;
+
+            mu2 = mu*mu;
+            a0 = y3 - y2 - y0 + y1;
+            a1 = y0 - y1 - a0;
+            a2 = y2 - y0;
+            a3 = y1;
+
+            return(a0*mu*mu2+a1*mu2+a2*mu+a3);
         }
 
         //
@@ -223,8 +291,8 @@ namespace CqfProject
         Real mMaxVol;
         Real mRate;
         Real mMaxPrice;
-        // TODO: Fix so grid size is numPriceSteps + 1
         std::size_t mNumPriceSteps;
+        Interpolation mInterpolation;
         std::vector<OptionContract> mContracts;
 
         //

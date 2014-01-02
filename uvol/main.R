@@ -1,8 +1,104 @@
 library(lattice)
+library(ggplot2)
+library(gridExtra)
+library(scales)
 
 source("pricing.R")
 source("utility.R")
 source("optimize.R")
+
+
+Richardson <- function(minVol, maxVol, riskFree, price, side, steps1, steps2, interpolation, options) {
+  result1 <- PriceOptionsNew(minVol, maxVol, riskFree, price, side, steps1, interpolation, options)
+  result2 <- PriceOptionsNew(minVol, maxVol, riskFree, price, side, steps2, interpolation, options)
+  
+  ds1 <- 2 * price / steps1
+  ds2 <- 2 * price / steps2
+  ds1sq <- ds1 * ds1
+  ds2sq <- ds2 * ds2
+  
+  result <- (result1 * ds2sq - result2 * ds1sq) / (ds2sq - ds1sq)
+
+  # print(result1)
+  # print(result2)
+  # print(result)
+
+  
+  return(result)
+}
+
+test <- function(steps1, steps2, interpolation) {
+  vanilla <- data.frame(type = "call", expiry = 1.0, qty = 1.0, strike = 100.0, stringsAsFactors = FALSE)
+  prices <- seq(60.0, 150.0, 1.0)
+  
+  p1 <- mapply(
+    function(price) PriceOptionsNew(0.2, 0.2, 0.1, price, "bid", steps1, interpolation, vanilla),
+    prices)
+  
+  p2 <- mapply(
+    function(price) PriceOptionsNew(0.2, 0.2, 0.1, price, "bid", steps2, interpolation, vanilla),
+    prices)
+  
+  r <- mapply(
+    function(price) Richardson(0.2, 0.2, 0.1, price, "bid", steps1, steps2, interpolation, vanilla),
+    prices)
+  
+  bs <- mapply(
+    function(price) EuropeanOption("call", price, 100.0, 0.0, 0.1, 1.0, 0.2)$value,
+    prices)
+  
+  er <- abs((r - bs) / bs);
+  ep1 <- abs((p1 - bs) / bs);
+  ep2 <- abs((p2 - bs) / bs);
+  
+  data.frame(prices = prices, ep1 = ep1, ep2 = ep2, er = er)
+}
+
+p1 <- test(101, 121, "linear")
+p2 <- test(101, 121, "cubic")
+
+mean(p1$ep2 / p2$ep2)
+mean(p1$er / p2$er)
+mean(p1$ep2) / mean(p2$ep2)
+
+ggplot() +
+  geom_line(data = p1, aes(x = prices, y = ep2), color = 'blue') +
+  geom_line(data = p2, aes(x = prices, y = ep2), color = 'red') +
+  scale_y_log10() +
+  xlab("Price") +
+  ylab("Relative Error") +
+  ggtitle("Finite difference error over price domain")
+  
+
+p1$interpolation <- "linear"
+p2$interpolation <- "cubic"
+pp <- rbind(p1, p2)
+
+ggplot(pp, aes(x = prices, y = ep2, group=interpolation, color=interpolation)) +
+  geom_line() +
+  scale_y_log10() +
+  xlab("Price") +
+  ylab("Relative Error") +
+  ggtitle("Finite difference error over price domain")
+
+
+# grid.arrange(p1, p2, nrow=2)
+
+
+result <- EuropeanFD(0.2, 0.2, 0.05, 100.0, "bid", 1000, vanilla)
+
+ofInterest <- result$prices > 50.0 & result$prices < 150.0
+values <- result$values[ofInterest]
+prices <- result$prices[ofInterest]
+
+bsValues <- mapply(
+  function (price) EuropeanOption("call", price, 100.0, 0.0, 0.05, 1.0, 0.2)$value,
+  prices)
+errors <- values - bsValues
+# plot(errors)
+relErrors <- errors / bsValues
+plot(relErrors)
+
 
 
 exotic <- CreateBinaryCall(1.0, 100.0)
@@ -10,6 +106,9 @@ scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0)
 
 opt <- OptimizeHedge(scenario, exotic)
 Verify(scenario, exotic, opt$solution[1:2], opt$solution[3:4])
+
+opt <- OptimizeHedge2(scenario, exotic)
+Verify(scenario, exotic, opt$solution[1:2], c(95.0, 105.0))
 
 
 CalculateHedgedSpread <- function(scenario, exotic, hedgeQuantities, hedgeStrikes) {
