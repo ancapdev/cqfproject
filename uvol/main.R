@@ -9,8 +9,8 @@ source("optimize.R")
 
 
 Richardson <- function(minVol, maxVol, riskFree, price, side, steps1, steps2, interpolation, options) {
-  result1 <- PriceOptionsNew(minVol, maxVol, riskFree, price, side, steps1, interpolation, options)
-  result2 <- PriceOptionsNew(minVol, maxVol, riskFree, price, side, steps2, interpolation, options)
+  result1 <- CppPriceEuropeanUncertainVol(options, minVol, maxVol, riskFree, price, side, steps1, price * 2, interpolation)$value
+  result2 <- CppPriceEuropeanUncertainVol(options, minVol, maxVol, riskFree, price, side, steps2, price * 2, interpolation)$value
   
   ds1 <- 2 * price / steps1
   ds2 <- 2 * price / steps2
@@ -32,11 +32,11 @@ test <- function(steps1, steps2, interpolation) {
   prices <- seq(60.0, 150.0, 1.0)
   
   p1 <- mapply(
-    function(price) PriceOptionsNew(0.2, 0.2, 0.1, price, "bid", steps1, interpolation, vanilla),
+    function(price) CppPriceEuropeanUncertainVol(vanilla, 0.2, 0.2, 0.1, price, "bid", steps1, price * 2, interpolation)$value,
     prices)
   
   p2 <- mapply(
-    function(price) PriceOptionsNew(0.2, 0.2, 0.1, price, "bid", steps2, interpolation, vanilla),
+    function(price) CppPriceEuropeanUncertainVol(vanilla, 0.2, 0.2, 0.1, price, "bid", steps2, price * 2, interpolation)$value,
     prices)
   
   r <- mapply(
@@ -74,7 +74,7 @@ p1$interpolation <- "linear"
 p2$interpolation <- "cubic"
 pp <- rbind(p1, p2)
 
-ggplot(pp, aes(x = prices, y = ep2, group=interpolation, color=interpolation)) +
+ggplot(pp, aes(x = prices, y = er, group=interpolation, color=interpolation)) +
   geom_line() +
   scale_y_log10() +
   xlab("Price") +
@@ -82,7 +82,20 @@ ggplot(pp, aes(x = prices, y = ep2, group=interpolation, color=interpolation)) +
   ggtitle("Finite difference error over price domain")
 
 
-# grid.arrange(p1, p2, nrow=2)
+
+plots <- lapply(
+  c("er", "ep1", "ep2"),
+  function(v) {
+    ggplot(pp, aes_string(x = "prices", y = v, group = "interpolation", color = "interpolation")) +
+      geom_line() +
+      scale_y_log10() +
+      xlab("Price") +
+      ylab("Relative Error") +
+      ggtitle("Finite difference error over price domain")
+  }
+)
+
+do.call(grid.arrange, plots)
 
 
 result <- EuropeanFD(0.2, 0.2, 0.05, 100.0, "bid", 1000, vanilla)

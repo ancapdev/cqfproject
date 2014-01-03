@@ -59,84 +59,48 @@ void PopulateContracts(FiniteDifferencePricer& pricer, DataFrame const& options)
                 qty[i]));
 }
 
-// returns dataframe with
-// - prices : NumericVector of underlying prices
-// - values : NumericVector of portfolio values at t=0
 // [[Rcpp::export]]
-DataFrame EuropeanFD(
-    double minVol,
-    double maxVol,
-    double riskFreeRate,
-    double underlyingPrice,
-    std::string side,
-    int numPriceSteps,
-    DataFrame options)
-{
-    FiniteDifferencePricer pricer(
-        minVol,
-        maxVol,
-        riskFreeRate,
-        underlyingPrice * Real(2), // TODO: should be a scaled depending on max vol and time horizing
-        numPriceSteps);
-
-    PopulateContracts(pricer, options);
-
-    NumericVector prices(pricer.GetPrices().begin(), pricer.GetPrices().end());
-
-    // Note: NumericVector doesn't work with std::back_inserter. Sub-optimal work around:
-    //       Pre-allocating and initializing elements here and use regular iterator over elements to write values.
-    NumericVector values(prices.size());
-
-    double const value = pricer.Valuate(underlyingPrice, ToSide(side), values.begin());
-
-    return DataFrame::create(
-        _["prices"] = prices,
-        _["values"] = values);
-}
-
-// [[Rcpp::export]]
-NumericVector PriceOptionsNew(
+List CppPriceEuropeanUncertainVol(
+    DataFrame options,
     double minVol,
     double maxVol,
     double riskFreeRate,
     double underlyingPrice,
     std::string side,
     int priceSteps,
-    std::string interpolation,
-    DataFrame options)
+    double maxPrice,
+    std::string interpolation = "cubic",
+    int detail = 0)
 {
     FiniteDifferencePricer pricer(
         minVol,
         maxVol,
         riskFreeRate,
-        underlyingPrice * Real(2), // TODO: should be a scaled depending on max vol and time horizing
+        maxPrice,
         priceSteps,
         ToInterpolation(interpolation));
 
     PopulateContracts(pricer, options);
 
-    return NumericVector::create(pricer.Valuate(underlyingPrice, ToSide(side)));
-}
+    if (detail > 0)
+    {
+        NumericVector prices(pricer.GetPrices().begin(), pricer.GetPrices().end());
 
+        // Note: NumericVector doesn't work with std::back_inserter. Sub-optimal work around:
+        //       Pre-allocating and initializing elements here and use regular iterator over elements to write values.
+        NumericVector values(prices.size());
 
-// [[Rcpp::export]]
-NumericVector PriceOptions(
-    double minVol,
-    double maxVol,
-    double riskFreeRate,
-    double underlyingPrice,
-    DataFrame options)
-{
-    FiniteDifferencePricer pricer(
-        minVol,
-        maxVol,
-        riskFreeRate,
-        underlyingPrice * Real(2), // TODO: should be a scaled depending on max vol and time horizing
-        201); // TODO: Adjust this after fixing pricer logic
+        double const value = pricer.Valuate(underlyingPrice, ToSide(side), values.begin());
 
-    PopulateContracts(pricer, options);
-
-    return NumericVector::create(
-        _["bid"] = pricer.Valuate(underlyingPrice, Side::BID),
-        _["ask"] = pricer.Valuate(underlyingPrice, Side::ASK));
+        return List::create(
+            _["value"] = NumericVector::create(value),
+            _["prices"] = prices,
+            _["values"] = values);
+    }
+    else
+    {
+        return List::create(
+            _["value"] = NumericVector::create(
+                pricer.Valuate(underlyingPrice, ToSide(side))));
+    }
 }
