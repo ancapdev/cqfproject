@@ -8,6 +8,8 @@ source("utility.R")
 source("optimize.R")
 
 
+scenario <- CreateScenario(0.2, 0.2, underlyingPrice = 100.0)
+
 Richardson <- function(minVol, maxVol, riskFree, price, side, steps1, steps2, interpolation, options) {
   result1 <- CppPriceEuropeanUncertainVol(options, minVol, maxVol, riskFree, price, side, steps1, price * 2, interpolation)$value
   result2 <- CppPriceEuropeanUncertainVol(options, minVol, maxVol, riskFree, price, side, steps2, price * 2, interpolation)$value
