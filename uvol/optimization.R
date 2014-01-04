@@ -14,20 +14,7 @@ print.OptimizationResult <- function(x, ...) {
   cat("Value: ", x$value, "\n")
 }
 
-
-CalculateLowerBounds <- function(exotic) {
-  c(-2.0, 0.0, exotic$strike * 0.9, exotic$strike * 0.9)
-}
-
-CalculateUpperBounds <- function(exotic) {
-  c(0.0, 2.0, exotic$strike * 1.1, exotic$strike * 1.1)
-}
-
-CalculateInitialGuess <- function(exotic) {
-  c(-1.0, 1.0, exotic$strike * 0.95, exotic$strike * 1.05)
-}
-
-OptimizeHedge3 <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
+OptimizeHedgeNlopt <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
   # Maximize bid by minizing -bid
   scale = switch(side, bid = -1, ask = 1)
   
@@ -44,14 +31,13 @@ OptimizeHedge3 <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NL
     lb = rep(-1, length(hedgeStrikes)),
     ub = rep(1, length(hedgeStrikes)),
     opts = list(
-      # algorithm="NLOPT_GN_DIRECT_L",
       algorithm=algorithm,
-      maxeval=2000))
+      maxeval=10000))
   
   return(OptimizationResult(result$solution, result$objective * scale, result))
 }
 
-OptimizeHedge4 <- function(scenario, exotic, side, hedgeStrikes) {
+OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes) {
   result <- optim(
     rep(0, length(hedgeStrikes)),
     function(q) {

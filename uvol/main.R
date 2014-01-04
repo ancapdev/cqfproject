@@ -31,9 +31,9 @@ CalculatePayoffs <- function(options, prices) {
     })
 }
 
-ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, optResult) {
+ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
   res <- 25
-  q <- optResult$solution
+  q <- quantities
   
   quantities <- expand.grid(
     q1 = seq(q[1] * 0.0, q[1] * 2.0, length.out = res),
@@ -49,39 +49,82 @@ ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, optResult) {
   wireframe(
     value ~ q1 * q2,
     data = data,
-    # screen = list(z=45, y=30, z=45, x=-90, y=45),
     screen = list(z=-30, x=-60, y=0),
+    # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
+    scales = list(arrows = FALSE),
     drape = TRUE,
     pretty = TRUE)
+}
+
+ChartOptimization2 <- function(scenario, exotic, side, hedgeStrikes, quantities) {
+  res <- 25
+  baseQuantity <- quantities[1]
+  baseScale <- quantities[2] / quantities[1]
+  
+  baseAndScale <- expand.grid(
+    base = seq(baseQuantity * 0, baseQuantity * 2.0, length.out = res),
+    scale = seq(baseScale * 0, baseScale * 2.0, length.out = res))
+  
+  value <- apply(
+    baseAndScale,
+    1,
+    function(x) CalculateHedgedPrice(scenario, exotic, side, c(x[1], x[1] * x[2]), hedgeStrikes))
+  
+  data <- cbind(baseAndScale, value)
+  
+  wireframe(
+    value ~ base * scale,
+    data = data,
+    screen = list(z=-30, x=-60, y=0),
+    # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
+    scales = list(arrows = FALSE),
+    drape = TRUE,
+    pretty = TRUE)
+}
+
+OptimizeBidAsk <- function(scenario, exotic, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
+  bidOpt <- OptimizeHedgeNlopt(scenario, exotic, "bid", hedgeStrikes, algorithm)
+  askOpt <- OptimizeHedgeNlopt(scenario, exotic, "ask", hedgeStrikes, algorithm)
+  return(list(bid=bidOpt, ask=askOpt))
+}
+
+ChartPayoffs <- function(exotic, hedgeQuantities, hedgeStrikes) {
+  hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
+  portfolio <- rbind(exotic, hedges)
+  payoffs <- CalculatePayoffs(portfolio, prices)
+  ggplot(data.frame(price = prices, payoff = payoffs), aes(x = price, y = payoff)) +
+    geom_line()
+}
+
+RunOptimizationScenario <- function(scenario, exotic, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
+  opt <- OptimizeBidAsk(scenario, exotic, hedgeStrikes, algorithm)
+  bid <- opt$bid$value
+  ask <- opt$ask$value
+  mid <- (bid + ask) / 2
+  spread <- ask - bid
+  relSpread <- spread / mid
+  cat("bid: ", bid, ", ask: ", ask, ", spread: ", spread, ", relspread: ", relSpread, "\n")
+  print(ChartPayoffs(exotic, opt$bid$quantities, hedgeStrikes))
+  return(opt)
 }
 
 source("optimization.R")
 prices <- seq(80, 120)
 scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0)
 exotic <- CreateBinaryCall(1.0, 100.0)
-hedgeStrikes <- c(95, 105)
-bidOpt1 <- OptimizeHedge4(scenario, exotic, "bid", hedgeStrikes)
-hedges1 <- ConstructHedges(exotic, bidOpt1$quantities, hedgeStrikes)
-portfolio1 <- rbind(exotic, hedges1)
-payoffs1 <- CalculatePayoffs(portfolio1, prices)
-ggplot(data.frame(price = prices, payoff = payoffs1), aes(x = price, y = payoff)) +
-  geom_line()
-
-bidOpt2 <- OptimizeHedge3(scenario, exotic, "bid", hedgeStrikes)
-print(bidOpt2)
-
-strikes3 <- c(90, 95, 105, 110)
-bidOpt3 <- OptimizeHedge4(scenario, exotic, "bid", strikes3)
-hedges3 <- ConstructHedges(exotic, bidOpt3$quantities, strikes3)
-portfolio3 <- rbind(exotic, hedges3)
-payoffs3 <- CalculatePayoffs(portfolio3, prices)
-ggplot(data.frame(price = prices, payoff = payoffs3), aes(x = price, y = payoff)) +
-  geom_line()
-print(bidOpt3)
+# exotic <- CreateBinaryPut(1.0, 100.0)
+opt1 <- RunOptimizationScenario(scenario, exotic, c(95, 105)) # adjacent
+opt2 <- RunOptimizationScenario(scenario, exotic, c(95, 100)) # adjacent left + self
+opt3 <- RunOptimizationScenario(scenario, exotic, c(95, 100, 105)) # adjacent + self
+opt4 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 105, 110), "NLOPT_GN_DIRECT_L") # 2 adjacent
+opt5 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_LN_BOBYQA") # 2 adjacent + self
+opt6 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_DIRECT_L") # 2 adjacent + self
+opt7 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_CRS2_LM") # 2 adjacent + self
+opt8 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_ISRES") # 2 adjacent + self
+opt9 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_LN_SBPLX") # 2 adjacent + self
 
 
-ChartOptimization(scenario, exotic, "bid", hedgeStrikes, bidOpt)
-ChartOptimization(scenario, exotic, "ask", hedgeStrikes, askOpt)
+
 
 
 
