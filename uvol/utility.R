@@ -33,29 +33,21 @@ CreateBinaryCall <- function(expiry, strike) CreateOption(expiry, strike, "bcall
 CreateBinaryPut <- function(expiry, strike) CreateOption(expiry, strike, "bput")
 
 ConstructHedges <- function(exotic, quantities, strikes) {
-  t = if (exotic$type == "bcall") "call" else "put"
+  c <- length(quantities)
   
   hedges <- data.frame(
-    type = c(t, t),
-    expiry = c(exotic$expiry, exotic$expiry),
+    type = rep(substr(exotic$type, 2, 5), c),
+    expiry = rep(exotic$expiry, c),
     qty = quantities,
     strike = strikes,
     stringsAsFactors = FALSE);
 }
 
-CalculateHedgeCost <- function(scenario, hedges) {
-  sum(
-    mapply(
-      function(type, strike, expiry) PriceEuropeanBS(scenario, type, strike, expiry),
-      hedges$type, hedges$strike, hedges$expiry,
-      USE.NAMES = FALSE) * hedges$qty)
-}
-
-CalculateHedgedPrice <- function(scenario, exotic, hedgeQuantities, hedgeStrikes) {
+CalculateHedgedPrice <- function(scenario, exotic, side, hedgeQuantities, hedgeStrikes) {
   hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
   options <- rbind(exotic, hedges)
-  hedgeCost <- CalculateHedgeCost(scenario, hedges)
-  portfolioValue <- PriceEuropeanUncertain(scenario, options)
+  hedgeCost <- PriceEuropeanBS(scenario, hedges)
+  portfolioValue <- PriceEuropeanUncertain(scenario, options, side)
   return(portfolioValue - hedgeCost)
 }
 

@@ -1,5 +1,20 @@
 library(nloptr)
 
+
+# OptimizationResult constructor
+OptimizationResult <- function(quantities, value, raw) {
+  r <- list(quantities = quantities, value = value, raw = raw)
+  class(r) <- "OptimizationResult"
+  return(r)
+}
+
+# OptimzationResult custom print
+print.OptimizationResult <- function(x, ...) {
+  cat("Quantities: ", x$quantities, "\n")
+  cat("Value: ", x$value, "\n")
+}
+
+
 CalculateLowerBounds <- function(exotic) {
   c(-2.0, 0.0, exotic$strike * 0.9, exotic$strike * 0.9)
 }
@@ -12,88 +27,47 @@ CalculateInitialGuess <- function(exotic) {
   c(-1.0, 1.0, exotic$strike * 0.95, exotic$strike * 1.05)
 }
 
-# Optimize spread rather than max(bid) + min(ask) separately
-OptimizeHedge <- function(scenario, exotic) {  
-  nloptr(
-    CalculateInitialGuess(exotic),
+OptimizeHedge3 <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
+  # Maximize bid by minizing -bid
+  scale = switch(side, bid = -1, ask = 1)
+  
+  result <- nloptr(
+    rep(0, length(hedgeStrikes)),
     function(q) {
-      hedges <- ConstructHedges(exotic, q[1:2], q[3:4])
+      hedges <- ConstructHedges(exotic, q, hedgeStrikes)
       options <- rbind(exotic, hedges)
-      portfolioValue <- PriceEuropeanUncertain(scenario, options)
-      return(portfolioValue[2] - portfolioValue[1])
+      hedgeCost <- PriceEuropeanBS(scenario, hedges)
+      portfolioValue <- PriceEuropeanUncertain(scenario, options, side)
+      exoticValue = portfolioValue - hedgeCost
+      return(exoticValue * scale)
     },
-    lb = CalculateLowerBounds(exotic),
-    ub = CalculateUpperBounds(exotic),
+    lb = rep(-1, length(hedgeStrikes)),
+    ub = rep(1, length(hedgeStrikes)),
     opts = list(
-      algorithm="NLOPT_GN_DIRECT_L",
+      # algorithm="NLOPT_GN_DIRECT_L",
+      algorithm=algorithm,
       maxeval=2000))
+  
+  return(OptimizationResult(result$solution, result$objective * scale, result))
 }
 
-# WIP
-OptimizeHedge2 <- function(scenario, exotic) {  
-  nloptr(
-    c(0, 0),
+OptimizeHedge4 <- function(scenario, exotic, side, hedgeStrikes) {
+  result <- optim(
+    rep(0, length(hedgeStrikes)),
     function(q) {
-      hedges <- ConstructHedges(exotic, q[1:2], c(95, 105))
+      hedges <- ConstructHedges(exotic, q, hedgeStrikes)
       options <- rbind(exotic, hedges)
-      portfolioValue <- PriceEuropeanUncertain(scenario, options)
-      return(portfolioValue[2] - portfolioValue[1])
+      hedgeCost <- PriceEuropeanBS(scenario, hedges)
+      portfolioValue <- PriceEuropeanUncertain(scenario, options, side)
+      exoticValue = portfolioValue - hedgeCost
+      return(exoticValue)
     },
-    lb = c(-20, -20),
-    ub = c(20, 20),
-    opts = list(
-      algorithm="NLOPT_GN_DIRECT_L",
-      maxeval=2000))
+    lower = rep(-1, length(hedgeStrikes)),
+    upper = rep(1, length(hedgeStrikes)),
+    method = "L-BFGS-B",
+    control = list(
+      fnscale = switch(side, bid = -1, ask = 1),
+      maxit = 200))
+  
+  return(OptimizationResult(result$par, result$value, result))
 }
-
-
-#
-# Functions to optimize bid/ask separately.
-#
-
-# CreateObjectiveFunction <- function(scenario, exotic, side) {
-#   multiplier = if (side == "bid") -1.0 else 1.0
-#   
-#   function(q) {
-#     hedges <- ConstructHedges(exotic, q[1:2], q[3:4])
-#     options <- rbind(exotic, hedges)
-#     
-#     hedgeCost <- CalculateHedgeCost(scenario, hedges)    
-#     portfolioValue <- PriceEuropeanUncertain(scenario, options)
-#     
-#     return(multiplier * (portfolioValue[side] - hedgeCost))
-#   }  
-# }
-# 
-# 
-# OptimizeHedge1 <- function(scenario, exotic, side) {
-#   # Doesn't find optimial solution starting at 100, 100
-#   # Much better at 95, 100
-#   # TOOD: use different optimization algorithm!
-#   # TODO: must have constraints on strike ranges
-#   # TODO: should bound search space by constraining quantities to [-1, 1]
-#   nlm(
-#     CreateObjectiveFunction(scenario, exotic, side),
-#     CalculateInitialGuess(exotic),
-#     iterlim=200)
-# }
-# 
-# OptimizeHedge2 <- function(scenario, exotic, side) {
-#   optim(
-#     CalculateInitialGuess(exotic),
-#     CreateObjectiveFunction(scenario, exotic, side),
-#     method = "L-BFGS-B",
-#     lower = CalculateLowerBounds(exotic),
-#     upper = CalculateUpperBounds(exotic))
-# }
-# 
-# OptimizeHedge3 <- function(scenario, exotic, side) {  
-#   nloptr(
-#     CalculateInitialGuess(exotic),
-#     CreateObjectiveFunction(scenario, exotic, side),
-#     lb = CalculateLowerBounds(exotic),
-#     ub = CalculateUpperBounds(exotic),
-#     opts = list(
-#       algorithm="NLOPT_GN_DIRECT_L",
-#       maxeval=10000))
-# }
