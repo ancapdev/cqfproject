@@ -18,14 +18,19 @@ CreateScenario <- function(
   obj
 }
 
-CreateBinaryCall <- function(expiry, strike) {
+CreateOption <- function(expiry, strike, type) {
   data.frame(
-    type = "bcall",
+    type = type,
     expiry = expiry,
     qty = 1.0,
     strike = strike,
     stringsAsFactors = FALSE)
 }
+
+CreateCall <- function(expiry, strike) CreateOption(expiry, strike, "call")
+CreatePut <- function(expiry, strike) CreateOption(expiry, strike, "put")
+CreateBinaryCall <- function(expiry, strike) CreateOption(expiry, strike, "bcall")
+CreateBinaryPut <- function(expiry, strike) CreateOption(expiry, strike, "bput")
 
 ConstructHedges <- function(exotic, quantities, strikes) {
   t = if (exotic$type == "bcall") "call" else "put"

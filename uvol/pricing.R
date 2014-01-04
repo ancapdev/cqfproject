@@ -6,15 +6,31 @@ Sys.setenv("PKG_CXXFLAGS"=cxxflags)
 sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
 rm(cxxflags)
 
-PriceEuropeanBS <- function(scenario, type, strike, expiry) {
-  EuropeanOption(
+PriceSingleEuropeanBS <- function(scenario, type, strike, expiry) {
+  S <- scenario$underlyingPrice
+  K <- strike
+  r <- scenario$riskFreeRate
+  vol <- scenario$impliedVol
+  T <- expiry
+  
+  d1 <- (log(S / K) + (r + vol^2 / 2) * expiry) / (vol * sqrt(T))
+  d2 <- d1 - vol * sqrt(T)
+  
+  switch(
     type,
-    scenario$underlyingPrice,
-    strike,
-    0.0,
-    scenario$riskFreeRate,
-    expiry,
-    scenario$impliedVol)$value
+    call = pnorm(d1) * S - pnorm(d2) * K * exp(-r * T),
+    put = -pnorm(-d1) * S + pnorm(-d2) * K * exp(-r * T),
+    bcall = exp(-r * T) * pnorm(d2),
+    bput = exp(-r * T) * pnorm(-d2))
+}
+
+
+PriceEuropeanBS <- function(scenario, options) {
+  sum(
+    mapply(
+      function(type, strike, expiry) PriceSingleEuropeanBS(scenario, type, strike, expiry),
+      options$type, options$strike, options$expiry,
+      USE.NAMES = FALSE) * options$qty)
 }
 
 PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 50, steps2 = 70, interpolation = "cubic") {

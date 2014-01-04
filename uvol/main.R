@@ -5,10 +5,21 @@ library(scales)
 
 source("pricing.R")
 source("utility.R")
-source("optimize.R")
+source("optimization.R")
+source("errorAnalysis.R")
+AnalyzeErrors()
 
 
 scenario <- CreateScenario(0.2, 0.2, underlyingPrice = 100.0)
+exotic <- CreateBinaryCall(1.0, 100.0)
+vanilla <- CreatePut(1.0, 80.0)
+
+p1 <- PriceEuropeanBS(scenario, vanilla)
+p2 <- PriceEuropeanUncertain(scenario, vanilla, "bid", 50, 80)
+print(p1)
+print(p2)
+print(1 - p1 / p2)
+
 
 Richardson <- function(minVol, maxVol, riskFree, price, side, steps1, steps2, interpolation, options) {
   result1 <- CppPriceEuropeanUncertainVol(options, minVol, maxVol, riskFree, price, side, steps1, price * 2, interpolation)$value
@@ -56,12 +67,12 @@ test <- function(steps1, steps2, interpolation) {
   data.frame(prices = prices, ep1 = ep1, ep2 = ep2, er = er)
 }
 
-p1 <- test(101, 121, "linear")
-p2 <- test(101, 121, "cubic")
+p1 <- test(100, 120, "linear")
+p2 <- test(100, 120, "cubic")
 
-mean(p1$ep2 / p2$ep2)
-mean(p1$er / p2$er)
-mean(p1$ep2) / mean(p2$ep2)
+print(mean(p1$ep2 / p2$ep2))
+print(mean(p1$er / p2$er))
+print(mean(p1$ep2) / mean(p2$ep2))
 
 ggplot() +
   geom_line(data = p1, aes(x = prices, y = ep2), color = 'blue') +
