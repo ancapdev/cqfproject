@@ -206,7 +206,7 @@ namespace CqfProject
 
                 // Simulate to next expiry or 0
                 std::size_t const timeSteps = static_cast<std::size_t>(timeToNextExpiry / mTargetDeltaTime) + 1;
-                Real const deltaTime = timeToNextExpiry / (timeSteps - 1);
+                Real const deltaTime = timeToNextExpiry / timeSteps;
 
                 for (std::size_t k = 0; k < timeSteps; ++k)
                 {
@@ -225,7 +225,6 @@ namespace CqfProject
                     // TODO: check numPriceSteps >= 3
                     next[numPriceSteps] = Real(2) * next[numPriceSteps - 1] - next[numPriceSteps - 2];
 
-                    // next.swap(current);
                     std::swap(next, current);
                 }
             }
