@@ -122,8 +122,17 @@ opt6 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLO
 opt7 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_CRS2_LM") # 2 adjacent + self
 opt8 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_ISRES") # 2 adjacent + self
 opt9 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_LN_SBPLX") # 2 adjacent + self
+opt10 <- RunOptimizationScenario(scenario, exotic, c(95, 100, 105), "NLOPT_GN_CRS2_LM") # adjacent + self
 
 
+
+
+# Function shape estimation
+# http://www.sce.carleton.ca/faculty/chinneck/MProbe/MProbePaper2.pdf
+# 2.1 Function Shape
+EsimateShape <- function(f, lowerBound, upperBound) {
+  
+}
 
 
 
