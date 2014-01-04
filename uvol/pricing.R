@@ -33,15 +33,15 @@ PriceEuropeanBS <- function(scenario, options) {
       USE.NAMES = FALSE) * options$qty)
 }
 
-PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 50, steps2 = 70, interpolation = "cubic") {
+PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 100L, steps2 = 200L, interpolation = "cubic") {
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
 
-  ds1sq <- (maxPrice / steps1)^2
-  ds2sq <- (maxPrice / steps2)^2
+  ds1sq <- (1 / steps1)^2
+  ds2sq <- (1 / steps2)^2
   
   # Prices using a given number of asset steps
-  helper <- function (steps) {
+  helper <- function(steps) {
     CppPriceEuropeanUncertainVol(
       options,
       scenario$minVol,
@@ -55,4 +55,25 @@ PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 50, steps2 
   }
   
   return((helper(steps1) * ds2sq - helper(steps2) * ds1sq) / (ds2sq - ds1sq))
+}
+
+PriceEuropeanUncertain2 <- function(scenario, options, side, steps = 100L, interpolation = "cubic") {
+  # TODO: could scale by time horizing and volatility
+  maxPrice <- scenario$underlyingPrice * 2
+  
+  # Prices using a given number of asset steps
+  helper <- function(s) {
+    CppPriceEuropeanUncertainVol(
+      options,
+      scenario$minVol,
+      scenario$maxVol,
+      scenario$riskFreeRate,
+      scenario$underlyingPrice,
+      side,
+      s,
+      maxPrice,
+      interpolation)$value
+  }
+  
+  return((4 * helper(steps * 2) - helper(steps)) / 3)
 }

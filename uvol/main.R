@@ -7,18 +7,17 @@ source("pricing.R")
 source("utility.R")
 source("optimization.R")
 source("errorAnalysis.R")
+print(AnalyzeErrorsByStrike(scenario, "call", 200, 300))
+print(AnalyzeErrorsByStep(scenario, vanilla))
+
 AnalyzeErrors()
 
 
 scenario <- CreateScenario(0.2, 0.2, underlyingPrice = 100.0)
 exotic <- CreateBinaryCall(1.0, 100.0)
-vanilla <- CreatePut(1.0, 80.0)
-
-p1 <- PriceEuropeanBS(scenario, vanilla)
-p2 <- PriceEuropeanUncertain(scenario, vanilla, "bid", 50, 80)
-print(p1)
-print(p2)
-print(1 - p1 / p2)
+vanilla <- CreateCall(1.0, 100.0)
+print(AnalyzeErrorsByStrike(scenario, "call"))
+print(AnalyzeErrorsByStep(scenario, vanilla))
 
 
 Richardson <- function(minVol, maxVol, riskFree, price, side, steps1, steps2, interpolation, options) {
