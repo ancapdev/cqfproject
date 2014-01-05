@@ -7,7 +7,7 @@ source("pricing.R")
 source("utility.R")
 source("optimization.R")
 source("errorAnalysis.R")
-
+source("functionAnalysis.R")
 
 AnalyzeErrors()
 
@@ -108,10 +108,21 @@ RunOptimizationScenario <- function(scenario, exotic, hedgeStrikes, algorithm = 
   return(opt)
 }
 
-source("optimization.R")
 prices <- seq(80, 120)
 scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0)
 exotic <- CreateBinaryCall(1.0, 100.0)
+
+source("functionAnalysis.R")
+Rprof(line.profiling = TRUE)
+diffs <- DifferencesFromLines(
+  function(q) CalculateHedgedPrice(scenario, exotic, "bid", q, c(90, 95, 100, 105, 110)),
+  rep(-1, 5),
+  rep(1, 5),
+  500, 5)
+Rprof(NULL)
+summaryRprof(lines = "show")
+hist(diffs)
+
 # exotic <- CreateBinaryPut(1.0, 100.0)
 opt1 <- RunOptimizationScenario(scenario, exotic, c(95, 105)) # adjacent
 opt2 <- RunOptimizationScenario(scenario, exotic, c(95, 100)) # adjacent left + self
@@ -123,17 +134,6 @@ opt7 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLO
 opt8 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_GN_ISRES") # 2 adjacent + self
 opt9 <- RunOptimizationScenario(scenario, exotic, c(90, 95, 100, 105, 110), "NLOPT_LN_SBPLX") # 2 adjacent + self
 opt10 <- RunOptimizationScenario(scenario, exotic, c(95, 100, 105), "NLOPT_GN_CRS2_LM") # adjacent + self
-
-
-
-
-# Function shape estimation
-# http://www.sce.carleton.ca/faculty/chinneck/MProbe/MProbePaper2.pdf
-# 2.1 Function Shape
-EsimateShape <- function(f, lowerBound, upperBound) {
-  
-}
-
 
 
 
