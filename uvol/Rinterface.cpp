@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "finiteDifferencePricer.hpp"
+#include "blackScholes.hpp"
 
 using namespace Rcpp;
 using namespace CqfProject;
@@ -104,3 +105,41 @@ List CppPriceEuropeanUncertainVol(
                 pricer.Valuate(underlyingPrice, ToSide(side))));
     }
 }
+
+// [[Rcpp::export]]
+double CppPriceEuropeanBS(
+    DataFrame options,
+    double vol,
+    double riskFreeRate,
+    double underlyingPrice)
+{
+    CharacterVector type = options["type"];
+    NumericVector expiry = options["expiry"];
+    NumericVector qty = options["qty"];
+    NumericVector strike = options["strike"];
+
+    int const count = options.nrows();
+    double sum = 0.0;
+    for (int i = 0; i < count; ++i)
+    {
+        double const T = expiry[i];
+        double const K = strike[i];
+        double const q = qty[i];
+
+        PutCallPair const putCall = BlackScholesPutCall(vol, riskFreeRate, T, underlyingPrice, K);
+
+        if (type[i] == "call")
+            sum += q * putCall.call;
+        else if (type[i] == "put")
+            sum += q * putCall.put;
+        else if (type[i] == "bcall")
+            sum += q * BlackScholesBinaryCall(vol, riskFreeRate, T, underlyingPrice, K);
+        else if (type[i] == "bput")
+            sum += q * BlackScholesBinaryPut(vol, riskFreeRate, T, underlyingPrice, K);
+        else
+            throw std::runtime_error("Invalid option type");
+    }
+
+    return sum;
+}
+

@@ -43,29 +43,10 @@ ConstructHedges <- function(exotic, quantities, strikes) {
     stringsAsFactors = FALSE);
 }
 
-CalculateHedgedPrice <- function(scenario, exotic, side, hedgeQuantities, hedgeStrikes) {
-  hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
-  options <- rbind(exotic, hedges)
-  hedgeCost <- PriceEuropeanBS(scenario, hedges)
-  portfolioValue <- PriceEuropeanUncertain(scenario, options, side)
+# Portfolio must have exotic in row 1 and hedges in the remaining rows
+CalculateHedgedPrice <- function(scenario, portfolio, side, hedgeQuantities) {
+  portfolio[2:nrow(portfolio), 3] <- hedgeQuantities
+  hedgeCost <- PriceEuropeanBS(scenario, portfolio[2:nrow(portfolio),])
+  portfolioValue <- PriceEuropeanUncertain(scenario, portfolio, side)
   return(portfolioValue - hedgeCost)
-}
-
-Verify <- function(scenario, exotic, quantities, strikes) {
-  hedges <- ConstructHedges(exotic, quantities, strikes)
-  options <- rbind(exotic, hedges)
-  hedgeCost <- CalculateHedgeCost(scenario, hedges)    
-  portfolioValue <- PriceEuropeanUncertain(scenario, options)
-  portfolioSpread <- portfolioValue[2] - portfolioValue[1]
-  exoticValue <- PriceEuropeanUncertain(scenario, exotic)
-  exoticSpread <- exoticValue[2] - exoticValue[1]
-  cat("Quantities: ", quantities, "\n")
-  cat("Strikes:    ", strikes, "\n")
-  cat("Exotic Value: ", exoticValue, "\n")
-  cat("Portfolio Value: ", portfolioValue, "\n")
-  cat("Hedge Cost: ", hedgeCost, "\n")
-  cat("Hedged Exotic Value: ", portfolioValue - hedgeCost, "\n")
-  cat("Portfolio Spread: ", portfolioSpread, "\n")
-  cat("Exotic Spread:", exoticSpread, "\n")
-  cat("Spread Improvement:", (exoticSpread - portfolioSpread) / exoticSpread, "\n")
 }

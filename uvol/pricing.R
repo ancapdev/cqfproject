@@ -1,36 +1,13 @@
 library(Rcpp)
-library(RQuantLib)
+# library(RQuantLib)
 
 cxxflags <- paste0("-std=c++0x -Doverride= -I", getwd())
 Sys.setenv("PKG_CXXFLAGS"=cxxflags)
 sourceCpp("Rinterface.cpp") #, verbose=T, rebuild=T)
 rm(cxxflags)
 
-PriceSingleEuropeanBS <- function(scenario, type, strike, expiry) {
-  S <- scenario$underlyingPrice
-  K <- strike
-  r <- scenario$riskFreeRate
-  vol <- scenario$impliedVol
-  T <- expiry
-  
-  d1 <- (log(S / K) + (r + vol^2 / 2) * expiry) / (vol * sqrt(T))
-  d2 <- d1 - vol * sqrt(T)
-  
-  switch(
-    type,
-    call = pnorm(d1) * S - pnorm(d2) * K * exp(-r * T),
-    put = -pnorm(-d1) * S + pnorm(-d2) * K * exp(-r * T),
-    bcall = exp(-r * T) * pnorm(d2),
-    bput = exp(-r * T) * pnorm(-d2))
-}
-
-
 PriceEuropeanBS <- function(scenario, options) {
-  sum(
-    mapply(
-      function(type, strike, expiry) PriceSingleEuropeanBS(scenario, type, strike, expiry),
-      options$type, options$strike, options$expiry,
-      USE.NAMES = FALSE) * options$qty)
+  CppPriceEuropeanBS(options, scenario$impliedVol, scenario$riskFreeRate, scenario$underlyingPrice)
 }
 
 PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 100L, steps2 = 200L, interpolation = "cubic") {

@@ -113,15 +113,32 @@ scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0)
 exotic <- CreateBinaryCall(1.0, 100.0)
 
 source("functionAnalysis.R")
+source("utility.R")
+source("pricing.R")
+portfolio <- 
+  rbind(
+    exotic,
+    ConstructHedges(exotic, rep(0, 5),  c(90, 95, 100, 105, 110)))
 Rprof(line.profiling = TRUE)
 diffs <- DifferencesFromLines(
-  function(q) CalculateHedgedPrice(scenario, exotic, "bid", q, c(90, 95, 100, 105, 110)),
+  # function(q) CalculateHedgedPrice(scenario, exotic, "bid", q, c(90, 95, 100, 105, 110)),
+  function(q) CalculateHedgedPrice2(scenario, portfolio, "bid", q),
   rep(-1, 5),
   rep(1, 5),
   500, 5)
 Rprof(NULL)
 summaryRprof(lines = "show")
 hist(diffs)
+
+
+source("utility.R")
+source("optimization.R")
+Rprof(line.profiling = TRUE)
+RunOptimizationScenario(scenario, exotic, c(90, 95, 105, 110), "NLOPT_GN_DIRECT_L") # 2 adjacent
+Rprof(NULL)
+summaryRprof(lines = "show")
+
+
 
 # exotic <- CreateBinaryPut(1.0, 100.0)
 opt1 <- RunOptimizationScenario(scenario, exotic, c(95, 105)) # adjacent

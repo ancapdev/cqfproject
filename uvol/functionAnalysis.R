@@ -32,7 +32,8 @@ DifferencesFromLines <- function(f, lowerBound, upperBound, numLines, numSamples
     if (count == numLines)
       break
     
-    setTxtProgressBar(pb, count)
+    if (count %% 10 == 0)
+      setTxtProgressBar(pb, count)
   }
   
   close(pb)

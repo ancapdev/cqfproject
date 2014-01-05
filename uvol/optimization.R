@@ -17,15 +17,29 @@ print.OptimizationResult <- function(x, ...) {
 OptimizeHedgeNlopt <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NLOPT_LN_BOBYQA") {
   # Maximize bid by minizing -bid
   scale = switch(side, bid = -1, ask = 1)
+
+  # Portfolio of exotic and hedges
+  portfolio <- rbind(
+    exotic,
+    ConstructHedges(exotic, rep(1, length(hedgeStrikes)), hedgeStrikes))
+
+  # Values for hedge options (qty = 1)
+  hedgeValues <- sapply(
+    seq_along(hedgeStrikes),
+    function(i) PriceEuropeanBS(scenario, portfolio[i+1,]))
   
   result <- nloptr(
     rep(0, length(hedgeStrikes)),
     function(q) {
-      hedges <- ConstructHedges(exotic, q, hedgeStrikes)
-      options <- rbind(exotic, hedges)
-      hedgeCost <- PriceEuropeanBS(scenario, hedges)
-      portfolioValue <- PriceEuropeanUncertain(scenario, options, side)
-      exoticValue = portfolioValue - hedgeCost
+      # Update hedge quantities
+      portfolio$qty[2:nrow(portfolio)] <- q
+      # Price portfolio
+      portfolioValue <- PriceEuropeanUncertain(scenario, portfolio, side)
+      # Price market hedge cost
+      hedgeCost <- sum(hedgeValues * q)
+      # Back out exotic value
+      exoticValue <- portfolioValue - hedgeCost
+      # Scale to turn bid maximization into minimization for the optimizer
       return(exoticValue * scale)
     },
     lb = rep(-1, length(hedgeStrikes)),
