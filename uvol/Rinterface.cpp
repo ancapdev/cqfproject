@@ -83,20 +83,19 @@ List CppPriceEuropeanUncertainVol(
 
     PopulateContracts(pricer, options);
 
-    if (detail > 0)
+    if (detail >= 1)
     {
         NumericVector prices(pricer.GetPrices().begin(), pricer.GetPrices().end());
 
         // Note: NumericVector doesn't work with std::back_inserter. Sub-optimal work around:
-        //       Pre-allocating and initializing elements here and use regular iterator over elements to write values.
-        NumericVector values(prices.size());
+        std::vector<double> values;
 
-        double const value = pricer.Valuate(underlyingPrice, ToSide(side), values.begin());
+        double const value = pricer.Valuate(underlyingPrice, ToSide(side), std::back_inserter(values), detail);
 
         return List::create(
             _["value"] = NumericVector::create(value),
             _["prices"] = prices,
-            _["values"] = values);
+            _["values"] = NumericVector(values.begin(), values.end()));
     }
     else
     {

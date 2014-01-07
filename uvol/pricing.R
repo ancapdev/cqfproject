@@ -8,9 +8,18 @@ rm(cxxflags)
 
 PriceEuropeanBS <- function(scenario, options) {
   CppPriceEuropeanBS(options, scenario$impliedVol, scenario$riskFreeRate, scenario$underlyingPrice)
+  
+#   EuropeanOption(
+#     options$type,
+#     scenario$underlyingPrice,
+#     options$strike,
+#     0,
+#     scenario$riskFreeRate,
+#     options$expiry,
+#     scenario$impliedVol)$value
 }
 
-PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 100L, steps2 = 200L, interpolation = "cubic") {
+PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 181L, steps2 = 201L, interpolation = "cubic") {
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
 
@@ -34,7 +43,7 @@ PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 100L, steps
   return((helper(steps1) * ds2sq - helper(steps2) * ds1sq) / (ds2sq - ds1sq))
 }
 
-PriceEuropeanUncertain2 <- function(scenario, options, side, steps = 100L, interpolation = "cubic") {
+PriceEuropeanUncertain2 <- function(scenario, options, side, steps = 101L, interpolation = "cubic") {
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
   
@@ -54,3 +63,4 @@ PriceEuropeanUncertain2 <- function(scenario, options, side, steps = 100L, inter
   
   return((4 * helper(steps * 2) - helper(steps)) / 3)
 }
+

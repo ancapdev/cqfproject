@@ -3,17 +3,8 @@
 
 #include "types.hpp"
 
-// #include <boost/math/distributions/normal.hpp>
-
 namespace CqfProject
 {
-/*
-    Real Phi(Real x)
-    {
-        return (Real)boost::math::cdf(boost::math::normal(), x);
-    }
-*/
-
     // From http://www.johndcook.com/cpp_phi.html
     inline double Phi(double x)
     {

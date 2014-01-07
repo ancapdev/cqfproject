@@ -43,10 +43,25 @@ ConstructHedges <- function(exotic, quantities, strikes) {
     stringsAsFactors = FALSE);
 }
 
-# Portfolio must have exotic in row 1 and hedges in the remaining rows
-CalculateHedgedPrice <- function(scenario, portfolio, side, hedgeQuantities) {
-  portfolio[2:nrow(portfolio), 3] <- hedgeQuantities
-  hedgeCost <- PriceEuropeanBS(scenario, portfolio[2:nrow(portfolio),])
-  portfolioValue <- PriceEuropeanUncertain(scenario, portfolio, side)
-  return(portfolioValue - hedgeCost)
+CreateHedgedPricer <- function(scenario, exotic, side, hedgeStrikes) {
+  # Portfolio of exotic and hedges
+  portfolio <- rbind(
+    exotic,
+    ConstructHedges(exotic, rep(1, length(hedgeStrikes)), hedgeStrikes))
+  
+  # Values for hedge options (qty = 1)
+  hedgeValues <- sapply(
+    seq_along(hedgeStrikes),
+    function(i) PriceEuropeanBS(scenario, portfolio[i+1,]))
+  
+  function(hedgeQuantities) {
+    # Update hedge quantities
+    portfolio$qty[2:nrow(portfolio)] <- hedgeQuantities
+    # Price portfolio
+    portfolioValue <- PriceEuropeanUncertain(scenario, portfolio, side)
+    # Price market hedge cost
+    hedgeCost <- sum(hedgeValues * hedgeQuantities)
+    # Back out exotic value
+    return(portfolioValue - hedgeCost)
+  }
 }

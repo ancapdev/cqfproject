@@ -15,10 +15,10 @@ namespace CqfProject
     {
         enum class Type
         {
-            PUT,
             CALL,
-            BINARY_PUT,
-            BINARY_CALL
+            PUT,
+            BINARY_CALL,
+            BINARY_PUT
         };
 
         OptionContract(Type type, Real expiry, Real strike, Real multiplier)
@@ -28,24 +28,33 @@ namespace CqfProject
             , multiplier(multiplier)
         {}
 
-        Real CalculatePayoff(Real price) const
+        // Calculates average payoff in the interval [price1, price2)
+        Real CalculateAveragePayoff(Real price1, Real price2) const
         {
             switch (type)
             {
-            case Type::PUT:
-                return std::max(strike - price, Real(0));                
-
             case Type::CALL:
-                return std::max(price - strike, Real(0));
+                return Real(0.5) * (std::max(price1 - strike, Real(0)) + std::max(price2 - strike, Real(0)));
 
-            case Type::BINARY_PUT:
-                return price < strike ? 1.0 : 0.0;
+            case Type::PUT:
+                return Real(0.5) * (std::max(strike - price1, Real(0)) + std::max(strike - price2, Real(0)));
 
             case Type::BINARY_CALL:
-                return price > strike ? 1.0 : 0.0;
+                return price1 > strike
+                    ? Real(1)
+                    : price2 > strike
+                    ? (price2 - strike) / (price2 - price1)
+                    : Real(0);
+
+            case Type::BINARY_PUT:
+                return price2 < strike
+                    ? Real(1)
+                    : price1 < strike
+                    ? (strike - price1) / (price2 - price1)
+                    : Real(0);
 
             default:
-                abort();
+                throw std::runtime_error("invalid option type");
             }
         }
 
@@ -96,8 +105,7 @@ namespace CqfProject
             , mNumPriceSteps(numPriceSteps)
             , mInterpolation(interpolation)
             , mDeltaPrice(maxPrice / numPriceSteps)
-              // TODO: Verify stability condition and optimal time step size
-            , mTargetDeltaTime(Real(0.99) / (numPriceSteps * numPriceSteps * maxVol * maxVol))
+            , mTargetDeltaTime(Real(0.9) / (numPriceSteps * numPriceSteps * maxVol * maxVol))
         {
             assert(maxVol >= minVol);
 
@@ -121,11 +129,11 @@ namespace CqfProject
 
         Real Valuate(Real price, Side side)
         {
-            return Valuate(price, side, NullOutIt());
+            return Valuate(price, side, NullOutIt(), 0);
         }
 
         template<typename OutIt>
-        Real Valuate(Real price, Side side, OutIt valuesOut)
+        Real Valuate(Real price, Side side, OutIt valuesOut, int detail)
         {
             // Maintain contracts sorted by descending expiry
             auto const expiryGreater = [] (OptionContract const& a, OptionContract const& b) { return a.expiry > b.expiry; };
@@ -149,7 +157,7 @@ namespace CqfProject
                         Real const g2 = gamma * maxVolSq;
                         return g1 < g2 ? g1 : g2;
                     },
-                    valuesOut);
+                    valuesOut, detail);
             }
             else
             {
@@ -162,17 +170,18 @@ namespace CqfProject
                         Real const g2 = gamma * maxVolSq;
                         return g1 > g2 ? g1 : g2;
                     },
-                    valuesOut);
+                    valuesOut, detail);
             }
         }
 
     private:
         template<typename VolSqGammaFun, typename OutIt>
-        Real ValuateImpl(Real price, VolSqGammaFun const& volSqGammaFun, OutIt valuesOut)
+        Real ValuateImpl(Real price, VolSqGammaFun const& volSqGammaFun, OutIt valuesOut, int detail)
         {
             std::size_t numPriceSteps = mNumPriceSteps;
             Real const deltaPrice = mDeltaPrice;
             Real const deltaPriceSq = deltaPrice * deltaPrice;
+            Real const halfDeltaPrice = Real(0.5) * mDeltaPrice;
             Real const invTwoDeltaPrice = Real(0.5) / deltaPrice;
             Real const invDeltaPriceSq = Real(1) / deltaPriceSq;
 
@@ -186,6 +195,7 @@ namespace CqfProject
             for (std::size_t i = 0; i <= numPriceSteps; ++i)
                 current[i] = Real(0);
 
+
             // March from last expiry to next expiry or to 0
             for (std::size_t contractIndex = 0; contractIndex < mContracts.size(); ++contractIndex)
             {
@@ -193,7 +203,9 @@ namespace CqfProject
 
                 // Add payoffs
                 for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
-                    current[i] += contract.CalculatePayoff(prices[i]) * contract.multiplier;
+                    current[i] += contract.CalculateAveragePayoff(
+                        prices[i] - halfDeltaPrice,
+                        prices[i] + halfDeltaPrice) * contract.multiplier;
 
                 // Find next expiry and time to it
                 Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1].expiry;
@@ -210,6 +222,11 @@ namespace CqfProject
 
                 for (std::size_t k = 0; k < timeSteps; ++k)
                 {
+                    // Write out values of entire grid if requested
+                    if (detail >= 2)
+                        for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
+                            *valuesOut++ = current[i];
+
                     // Main grid
                     for (std::size_t i = 1; i < numPriceSteps; ++i)
                     {
@@ -229,10 +246,10 @@ namespace CqfProject
                 }
             }
 
-
             // Copy out values
-            for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
-                *valuesOut++ = current[i];
+            if (detail >= 1)
+                for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
+                    *valuesOut++ = current[i];
 
             // Find closest point above current price
             auto it = std::upper_bound(mPrices.begin(), mPrices.end(), price);

@@ -1,8 +1,9 @@
 
 
-AnalyzeErrorsByStep <- function(scenario, option, steps = seq(20L, 250L, 10L)) {
+AnalyzeErrorsByStep <- function(scenario, option, steps = seq(41L, 251L, 10L), richardsonOffset = 20L, interpolation = "cubic") {
   # FD values
-  fd <- mapply(
+  fd <- sapply(
+    steps,
     function(s)
       CppPriceEuropeanUncertainVol(
         option,
@@ -12,41 +13,67 @@ AnalyzeErrorsByStep <- function(scenario, option, steps = seq(20L, 250L, 10L)) {
         scenario$underlyingPrice,
         "bid", # arbitrary since minVol = maxVol
         s,
-        scenario$underlyingPrice * 2)$value,
-    steps)
+        scenario$underlyingPrice * 2,
+        interpolation)$value)
+  
+  fd2 <- sapply(
+    steps,
+    function(s)
+      CppPriceEuropeanUncertainVol(
+        option,
+        scenario$impliedVol,
+        scenario$impliedVol,
+        scenario$riskFreeRate,
+        scenario$underlyingPrice,
+        "bid", # arbitrary since minVol = maxVol
+        s - richardsonOffset,
+        scenario$underlyingPrice * 2,
+        interpolation)$value)
   
   # FD+Richardson values (using max steps = steps so that order complexity is the same as the plain FD sample)
-  fdr <- mapply(
-    function(s) PriceEuropeanUncertain(scenario, option, "bid", s / 2, s),
-    steps)
+  fdr <- sapply(
+    steps,
+    function(s) PriceEuropeanUncertain(scenario, option, "bid", s - richardsonOffset, s, interpolation))
   
   # BS values
-  bs <- mapply(
-    function(steps) PriceEuropeanBS(scenario, option),
-    steps)
+  bs <- PriceEuropeanBS(scenario, option)
   
   # Compose data frame with results for charting
   result <- rbind(
     data.frame(
-      steps = steps,
-      error = abs((bs - fd) / bs),
+      value = fd,
       algorithm = "FD"),
     data.frame(
-      steps = steps,
-      error = abs((bs - fdr) / bs),
+      value = fd2,
+      algorithm = "FD2"),
+    data.frame(
+      value = fdr,
       algorithm = "FD+Richardson"))
   
+  result$steps <- steps
+  result$error <- result$value - bs
+  result$absError <- abs(result$error)
+    
+#   p <- ggplot(result, aes(x = steps, y = absError, group=algorithm, color=algorithm)) +
+#     geom_line() +
+#     scale_y_log10() +
+#     xlab("Price Steps") +
+#     ylab("Abs Error") +
+#     ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
+
   p <- ggplot(result, aes(x = steps, y = error, group=algorithm, color=algorithm)) +
     geom_line() +
-    scale_y_log10() +
+    # scale_y_log10() +
+    # geom_hline(yintercept=bs) +
     xlab("Price Steps") +
-    ylab("Relative Error") +
-    ggtitle(paste("Finite difference errors for ATM", option$type, "at different grid resolutions"))
+    ylab("Error") +
+    ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
+  
   
   return(p)
 }
 
-AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 80) {
+AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 201) {
   # FD values and prices
   fd <- CppPriceEuropeanUncertainVol(
     option,
@@ -75,7 +102,7 @@ AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 80) {
     data.frame(
       prices = pricesOfInterest,
       error = abs((bs - valuesOfInterest) / bs))
-  
+      
   p <- ggplot(result, aes(x = prices, y = error)) +
     geom_line() +
     scale_y_log10() +
@@ -89,14 +116,30 @@ AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 80) {
 AnalyzeErrorsByStrike <- function(
   scenario,
   type,
-  steps1 = 100,
-  steps2 = 200,
+  steps1 = 181,
+  steps2 = 201,
   strikes = seq(scenario$underlyingPrice * 0.5,
                 scenario$underlyingPrice * 1.5,
                 length.out=101)) {
   
+  print(strikes)
+  
   # FD values
-  fd <- mapply(
+  fd1 <- sapply(
+    strikes,
+    function(s)
+      CppPriceEuropeanUncertainVol(
+        CreateOption(1.0, s, type),
+        scenario$impliedVol,
+        scenario$impliedVol,
+        scenario$riskFreeRate,
+        scenario$underlyingPrice,
+        "bid", # arbitrary since minVol = maxVol
+        steps1,
+        scenario$underlyingPrice * 2)$value)
+  
+  fd2 <- sapply(
+    strikes,
     function(s)
       CppPriceEuropeanUncertainVol(
         CreateOption(1.0, s, type),
@@ -106,39 +149,50 @@ AnalyzeErrorsByStrike <- function(
         scenario$underlyingPrice,
         "bid", # arbitrary since minVol = maxVol
         steps2,
-        scenario$underlyingPrice * 2)$value,
-    strikes)
-  
+        scenario$underlyingPrice * 2)$value)
+
   # FD+Richardson values (using max steps = steps so that order complexity is the same as the plain FD sample)
-  fdr <- mapply(
-    function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid", steps1, steps2),
-    strikes)
+  fdr <- sapply(
+    strikes,
+    # function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid", steps1, steps2, "linear"))
+    function(s) PriceEuropeanUncertain2(scenario, CreateOption(1.0, s, type), "bid", steps1, "linear"))
   
   # BS values
-  bs <- mapply(
-    function(s) PriceEuropeanBS(scenario, CreateOption(1.0, s, type)),
-    strikes)
+  bs <- sapply(
+    strikes,
+    function(s) PriceEuropeanBS(scenario, CreateOption(1.0, s, type)))
   
   # Compose data frame with results for charting
   result <- rbind(
     data.frame(
-      strikes = strikes,
-      error = abs(fd - bs),
-      relError = abs((bs - fd) / bs),
-      algorithm = "FD"),
+      value = fd1,
+      algorithm = "FD1"),
     data.frame(
-      strikes = strikes,
-      error = abs(fdr - bs),
-      relError = abs((bs - fdr) / bs),
-      algorithm = "FD+Richardson"))
+      value = fd2,
+      algorithm = "FD2"),
+    data.frame(
+      value = fdr,
+      algorithm = "Richardson (FD1 + FD2)"))
   
-  p <- ggplot(result, aes(x = strikes, y = relError, group=algorithm, color=algorithm)) +
+  
+  result$strikes <- strikes
+  result$error <- result$value - bs
+  result$relError <- result$error / bs
+
+  p <- ggplot(result, aes(x = strikes, y = abs(relError), group=algorithm, color=algorithm)) +
     geom_line() +
     geom_line(stat = "hline", yintercept = mean) +
     scale_y_log10() +
     xlab("Strike") +
     ylab("Relative Error") +
-    ggtitle(paste("Finite difference errors for", option$type, "at different strikes"))
+    ggtitle(paste("Finite difference errors for", type, "at different strikes"))
+   
+#   p <- ggplot(result, aes(x = strikes, y = relError, group=algorithm, color=algorithm)) +
+#     geom_line() +
+#     geom_line(stat = "hline", yintercept = mean) +
+#     xlab("Strike") +
+#     ylab("Relative Error") +
+#     ggtitle(paste("Finite difference errors for", type, "at different strikes"))
   
   return(p)
 }
@@ -152,9 +206,17 @@ AnalyzeErrors <- function() {
   for (type in c("call", "put", "bcall", "bput")) {
     option <- CreateOption(1.0, scenario$underlyingPrice, type)
 
-    # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes
-    ggsave(paste0("charts/error_steps_atm_", type, ".", chartType),
-           AnalyzeErrorsByStep(scenario, option))
+    # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes (aligned to price)
+    ggsave(paste0("charts/error_steps_atm_aligned_", type, ".", chartType),
+           AnalyzeErrorsByStep(scenario, option, seq(30L, 250L, 10L)))
+    
+    # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes (shifted from price)
+    ggsave(paste0("charts/error_steps_atm_shift_", type, ".", chartType),
+           AnalyzeErrorsByStep(scenario, option, seq(31L, 251L, 10L)))
+    
+    # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes (detaile at high end)
+    ggsave(paste0("charts/error_steps_atm_all_", type, ".", chartType),
+           AnalyzeErrorsByStep(scenario, option, seq(200L, 220L, 2L)))
 
     # Option at current price FD vs FD+Richardson vs BS for varying strikes
     ggsave(paste0("charts/error_strike_", type, ".", chartType),
@@ -164,6 +226,7 @@ AnalyzeErrors <- function() {
     ggsave(paste0("charts/error_gridprice_atm_", type, ".", chartType),
            AnalyzeErrorsByGridPrice(scenario, option))
     
+    # TODO
     # ATM between grid prices FD linear vs FD cubic vs BS
   }
   # Note on odd vs even grid sizes (even always falls at grid for current price, odd always fall outside, assuming maxPrice = price * 2)
