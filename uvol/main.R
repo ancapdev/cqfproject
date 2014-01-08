@@ -48,7 +48,7 @@ plot(strikes, cfdr2 - bs)
 
 source("pricing.R")
 source("errorAnalysis.R")
-steps <- seq(50L, 350L, 2L)
+steps <- seq(50L, 350L, 1L)
 o2 <- CreateCall(1, 102)
 e1 <- AnalyzeErrorsByStep(sce, o, steps, 20)
 e2 <- AnalyzeErrorsByStep(sce, o2, steps, 20, interpolation = "cubic")

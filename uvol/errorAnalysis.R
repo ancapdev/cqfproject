@@ -54,20 +54,20 @@ AnalyzeErrorsByStep <- function(scenario, option, steps = seq(41L, 251L, 10L), r
   result$error <- result$value - bs
   result$absError <- abs(result$error)
     
-#   p <- ggplot(result, aes(x = steps, y = absError, group=algorithm, color=algorithm)) +
-#     geom_line() +
-#     scale_y_log10() +
-#     xlab("Price Steps") +
-#     ylab("Abs Error") +
-#     ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
+   p <- ggplot(result, aes(x = steps, y = absError, group=algorithm, color=algorithm)) +
+     geom_line() +
+     scale_y_log10() +
+     xlab("Price Steps") +
+     ylab("Abs Error") +
+     ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
 
-  p <- ggplot(result, aes(x = steps, y = error, group=algorithm, color=algorithm)) +
-    geom_line() +
-    # scale_y_log10() +
-    # geom_hline(yintercept=bs) +
-    xlab("Price Steps") +
-    ylab("Error") +
-    ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
+#   p <- ggplot(result, aes(x = steps, y = error, group=algorithm, color=algorithm)) +
+#     geom_line() +
+#     # scale_y_log10() +
+#     # geom_hline(yintercept=bs) +
+#     xlab("Price Steps") +
+#     ylab("Error") +
+#     ggtitle(paste("Finite difference errors for", option$strike, option$type, "at different grid resolutions"))
   
   
   return(p)
@@ -116,13 +116,11 @@ AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 201) {
 AnalyzeErrorsByStrike <- function(
   scenario,
   type,
-  steps1 = 181,
-  steps2 = 201,
+  steps1 = 180,
+  steps2 = 200,
   strikes = seq(scenario$underlyingPrice * 0.5,
                 scenario$underlyingPrice * 1.5,
                 length.out=101)) {
-  
-  print(strikes)
   
   # FD values
   fd1 <- sapply(
@@ -154,8 +152,8 @@ AnalyzeErrorsByStrike <- function(
   # FD+Richardson values (using max steps = steps so that order complexity is the same as the plain FD sample)
   fdr <- sapply(
     strikes,
-    # function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid", steps1, steps2, "linear"))
-    function(s) PriceEuropeanUncertain2(scenario, CreateOption(1.0, s, type), "bid", steps1, "linear"))
+    function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid", steps1, steps2, "linear"))
+    # function(s) PriceEuropeanUncertain2(scenario, CreateOption(1.0, s, type), "bid", steps1, "linear"))
   
   # BS values
   bs <- sapply(
@@ -206,6 +204,8 @@ AnalyzeErrors <- function() {
   for (type in c("call", "put", "bcall", "bput")) {
     option <- CreateOption(1.0, scenario$underlyingPrice, type)
 
+    # TODO Analyize non-ATM convergence
+    
     # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes (aligned to price)
     ggsave(paste0("charts/error_steps_atm_aligned_", type, ".", chartType),
            AnalyzeErrorsByStep(scenario, option, seq(30L, 250L, 10L)))

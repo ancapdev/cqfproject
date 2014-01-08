@@ -19,7 +19,7 @@ namespace CqfProject
             PUT,
             BINARY_CALL,
             BINARY_PUT
-        };
+       };
 
         OptionContract(Type type, Real expiry, Real strike, Real multiplier)
             : type(type)
@@ -28,16 +28,28 @@ namespace CqfProject
             , multiplier(multiplier)
         {}
 
+        // TODO: Flag to switch on point sampling
         // Calculates average payoff in the interval [price1, price2)
         Real CalculateAveragePayoff(Real price1, Real price2) const
         {
             switch (type)
             {
             case Type::CALL:
-                return Real(0.5) * (std::max(price1 - strike, Real(0)) + std::max(price2 - strike, Real(0)));
+                // return Real(0.5) * (std::max(price1 - strike, Real(0)) + std::max(price2 - strike, Real(0)));
+                return price1 > strike
+                    ? Real(0.5) * (price1 + price2) - strike
+                    : price2 > strike
+                    ? Real(0.5) * (price2 - strike) * (price2 - strike) / (price2 - price1)
+                    : Real(0);
 
             case Type::PUT:
-                return Real(0.5) * (std::max(strike - price1, Real(0)) + std::max(strike - price2, Real(0)));
+                // return Real(0.5) * (std::max(strike - price1, Real(0)) + std::max(strike - price2, Real(0)));
+                return price2 < strike
+                    ? strike - Real(0.5) * (price1 + price2)
+                    : price1 < strike
+                    ? Real(0.5) * (strike - price1) * (strike - price1) / (price2 - price1)
+                    : Real(0);
+                                
 
             case Type::BINARY_CALL:
                 return price1 > strike
