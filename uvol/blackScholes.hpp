@@ -3,11 +3,15 @@
 
 #include "types.hpp"
 
+#include <cmath>
+
 namespace CqfProject
 {
     // From http://www.johndcook.com/cpp_phi.html
     inline double Phi(double x)
     {
+        using namespace std;
+
         // constants
         double a1 =  0.254829592;
         double a2 = -0.284496736;
