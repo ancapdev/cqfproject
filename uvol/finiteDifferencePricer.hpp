@@ -53,7 +53,7 @@ namespace CqfProject
             , mMaxVol(maxVol)
             , mRate(rate)
             , mMaxPrice(maxPrice)
-            , mNumPriceSteps(numPriceSteps)
+            , mNumPriceSteps(std::max(numPriceSteps, (std::size_t)3))
             , mInterpolation(interpolation)
             , mDeltaPrice(maxPrice / numPriceSteps)
             , mTargetDeltaTime(Real(0.9) / (numPriceSteps * numPriceSteps * maxVol * maxVol))
@@ -295,21 +295,12 @@ namespace CqfProject
                             current[i] * beta2[i - 1] + 
                             current[i + 1] * gamma2[i - 1];
 
-                        /*
-                        Real const price = prices[i];
-                        Real const delta = (current[i+1] - current[i-1]) * invTwoDeltaPrice;
-                        Real const gamma = (current[i+1] - Real(2) * current[i] + current[i-1]) * invDeltaPriceSq;
-                        Real const theta = rate * current[i] - Real(0.5) * volSqGammaFun(gamma) * price * price - rate * price * delta;
-                        next[i] = current[i] - deltaTime * theta;
-                        */
-
                         next[i] = minMaxSelector(next1, next2);
                     }
 #endif
 
                     // Boundaries
                     next[0] = (Real(1) - rate * deltaTime) * current[0];
-                    // TODO: check numPriceSteps >= 3
                     next[numPriceSteps] = Real(2) * next[numPriceSteps - 1] - next[numPriceSteps - 2];
 
                     std::swap(next, current);
@@ -321,53 +312,41 @@ namespace CqfProject
                 for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
                     *valuesOut++ = current[i];
 
-            // Find closest point above current price
-            auto it = std::upper_bound(mPrices, mPrices + mNumPriceSteps + 1, price);
-            if (it == mPrices + mNumPriceSteps + 1)
-                throw std::runtime_error("Current price not in simulated set");
+            // Find closest below price
+            std::size_t const index = static_cast<std::size_t>(price / deltaPrice);
+            if (index > numPriceSteps)
+                throw std::runtime_error("Price not in simulated set");
 
-            auto const index = it - mPrices;
+            Real const distance = price - prices[index];
+            Real const k = distance / deltaPrice;
 
-            // If at 0.0, return lowest price value
-            if (index == 0)
-                return current[0];
-
-            // Interpolate between prices above and below current price
             if (mInterpolation == Interpolation::CUBIC &&
-                index > 1u &&
-                index < mNumPriceSteps)
+                index >= 1u &&
+                index < numPriceSteps - 1)
             {
-                Real const v00 = current[index - 2];
-                Real const v0 = current[index - 1];
-                Real const v1 = current[index];
-                Real const v11 = current[index + 1];
-                Real const k = (prices[index] - price) / deltaPrice;
-                return CubicInterpolate(v00, v0, v1, v11, Real(1) - k);
+                Real const v00 = current[index - 1];
+                Real const v0 = current[index];
+                Real const v1 = current[index + 1];
+                Real const v11 = current[index + 2];
+                return CubicInterpolate(v00, v0, v1, v11, k);
             }
             else
             {
-                Real const v0 = current[index - 1];
-                Real const v1 = current[index];
-                Real const k = (prices[index] - price) / deltaPrice;
-                return v0 * k + v1 * (Real(1) - k);
+                return current[index] * (1 - k) + current[index + 1] * k;
             }
         }
 
-        // TODO: re-style
-        static Real CubicInterpolate(
-            Real y0, Real y1,
-            Real y2, Real y3,
-            Real mu)
+
+        // Interpolate between y1 and y2, on the spline y0, y1, y2, y3, with normalize [0, 1] coefficient mu
+        static Real CubicInterpolate(Real y0, Real y1, Real y2, Real y3, Real mu)
         {
-            Real a0,a1,a2,a3,mu2;
+            Real const mu2 = mu * mu;
+            Real const a0 = y3 - y2 - y0 + y1;
+            Real const a1 = y0 - y1 - a0;
+            Real const a2 = y2 - y0;
+            Real const a3 = y1;
 
-            mu2 = mu*mu;
-            a0 = y3 - y2 - y0 + y1;
-            a1 = y0 - y1 - a0;
-            a2 = y2 - y0;
-            a3 = y1;
-
-            return(a0*mu*mu2+a1*mu2+a2*mu+a3);
+            return a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3;
         }
 
         //
