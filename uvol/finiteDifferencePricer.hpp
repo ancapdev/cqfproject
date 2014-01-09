@@ -63,7 +63,7 @@ namespace CqfProject
 
             // Padded price step arrays for
             // price, (alpha, beta, gamma) * 2, scratch * 2
-            std::size_t const priceStepChunks = ((numPriceSteps + 1) * sizeof(Real) + 31) / 32;
+            std::size_t const priceStepChunks = ((numPriceSteps + 1) * sizeof(Real) + 31 + 32) / 32;
             std::size_t const allocRequirement = priceStepChunks * 32 * 9;
             mAllocation = malloc(allocRequirement + 32);
             void* allignedAllocation = (void*)(((std::uintptr_t)mAllocation + 31u) & ~(std::uintptr_t)31u);
@@ -240,7 +240,9 @@ namespace CqfProject
 #if defined (USE_AVX)
                     __m256d lower = _mm256_load_pd(current);
                     // Each iteration calculates next[i+1:i+5]
-                    for (std::size_t i = 0; i < (numPriceSteps - 2); i += 4)
+                    // earliest termination: i = numPriceSteps - 1 -> last = [numPriceSteps - 4, numPriceSteps - 1]
+                    // latest termination :  i = numPriceSteps + 2 -> last = [numPriceSteps - 1, numPriceSteps + 2]
+                    for (std::size_t i = 0; i < (numPriceSteps - 1); i += 4)
                     {
                         __m256d const upper = _mm256_load_pd(current + i + 4);
         
