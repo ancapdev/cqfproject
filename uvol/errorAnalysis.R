@@ -172,7 +172,6 @@ AnalyzeErrorsByStrike <- function(
       value = fdr,
       algorithm = "Richardson (FD1 + FD2)"))
   
-  
   result$strikes <- strikes
   result$error <- result$value - bs
   result$relError <- result$error / bs
@@ -185,13 +184,6 @@ AnalyzeErrorsByStrike <- function(
     ylab("Relative Error") +
     ggtitle(paste("Finite difference errors for", type, "at different strikes"))
    
-#   p <- ggplot(result, aes(x = strikes, y = relError, group=algorithm, color=algorithm)) +
-#     geom_line() +
-#     geom_line(stat = "hline", yintercept = mean) +
-#     xlab("Strike") +
-#     ylab("Relative Error") +
-#     ggtitle(paste("Finite difference errors for", type, "at different strikes"))
-  
   return(p)
 }
 
@@ -204,8 +196,6 @@ AnalyzeErrors <- function() {
   for (type in c("call", "put", "bcall", "bput")) {
     option <- CreateOption(1.0, scenario$underlyingPrice, type)
 
-    # TODO Analyize non-ATM convergence
-    
     # ATM at current price FD vs FD+Richardson vs BS for varying grid sizes (aligned to price)
     ggsave(paste0("charts/error_steps_atm_aligned_", type, ".", chartType),
            AnalyzeErrorsByStep(scenario, option, seq(30L, 250L, 10L)))

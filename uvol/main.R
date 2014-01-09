@@ -15,9 +15,9 @@ AnalyzeErrors()
 source("pricing.R")
 source("errorAnalysis.R")
 sce <- CreateScenario(0.2, 0.2)
-o <- CreateCall(1, 100)
+o <- CreatePut(1, 101)
 strikes <- seq(50, 150)
-AnalyzeErrorsByStrike(sce, "call", 101, 121)
+AnalyzeErrorsByStrike(sce, "put", 100, 200)
 
 cfdr <- sapply(
   strikes,
@@ -48,8 +48,8 @@ plot(strikes, cfdr2 - bs)
 
 source("pricing.R")
 source("errorAnalysis.R")
-steps <- seq(50L, 350L, 1L)
-o2 <- CreateCall(1, 102)
+steps <- seq(100L, 110L, 1L)
+o2 <- CreateCall(1, 101)
 e1 <- AnalyzeErrorsByStep(sce, o, steps, 20)
 e2 <- AnalyzeErrorsByStep(sce, o2, steps, 20, interpolation = "cubic")
 grid.arrange(e1, e2)
@@ -123,7 +123,7 @@ CalculatePayoffs <- function(options, prices) {
               bcall = if(price > strike) 1 else 0,
               bput = if(price < strike) 1 else 0)
           },
-          options$type, options$strike
+          options$type, options$strike,
           USE.NAMES = FALSE) * options$qty)
     })
 }
@@ -134,6 +134,7 @@ CalculateAveragePayoff <- function(type, strike, price1, price2) {
     call = 0.5 * (max(price1 - strike, 0) + max(price2 - strike, 0)),
     put = 0.5 * (max(strike - price1, 0) + max(strike - price2, 0)),
     bcall =
+      # TODO: fix
       if(price1 > strike)
         1
       else if (price2 > strike)
