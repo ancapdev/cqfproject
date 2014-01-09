@@ -13,13 +13,7 @@ namespace CqfProject
 {
     struct OptionContract
     {
-        enum class Type
-        {
-            CALL,
-            PUT,
-            BINARY_CALL,
-            BINARY_PUT
-       };
+        typedef OptionType Type;
 
         OptionContract(Type type, Real expiry, Real strike, Real multiplier)
             : type(type)

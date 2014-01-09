@@ -6,3 +6,7 @@ add_executable(uvol
   types.hpp)
   
 target_link_libraries(uvol nlopt)
+
+add_custom_target(run-uvol
+  COMMAND uvol)
+  

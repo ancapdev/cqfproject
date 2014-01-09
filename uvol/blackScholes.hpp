@@ -4,6 +4,7 @@
 #include "types.hpp"
 
 #include <cmath>
+#include <stdexcept>
 
 namespace CqfProject
 {
@@ -92,6 +93,33 @@ namespace CqfProject
     {
         BlackScholesCoefficients const c(vol, rate, timeToExpiry, price, strike);
         return c.D * Phi(-c.d2);
+    }
+
+    inline Real BlackScholesOption(
+        OptionType type,
+        Real vol,
+        Real rate,
+        Real timeToExpiry,
+        Real price,
+        Real strike)
+    {
+        switch (type)
+        {
+        case OptionType::CALL:
+            return BlackScholesPutCall(vol, rate, timeToExpiry, price, strike).call;
+
+        case OptionType::PUT:
+            return BlackScholesPutCall(vol, rate, timeToExpiry, price, strike).put;
+
+        case OptionType::BINARY_CALL:
+            return BlackScholesBinaryCall(vol, rate, timeToExpiry, price, strike);
+
+        case OptionType::BINARY_PUT:
+            return BlackScholesBinaryPut(vol, rate, timeToExpiry, price, strike);
+
+        default:
+            throw std::runtime_error("invalid option type");
+        }
     }
 }
 
