@@ -95,9 +95,14 @@ namespace CqfProject
             mContracts.push_back(contract);
         }
 
-        std::vector<Real> GetPrices() const
+        Real const* BeginPrices() const
         {
-            return std::vector<Real>(mPrices, mPrices + mNumPriceSteps + 1);
+            return mPrices;
+        }
+
+        Real const* EndPrices() const
+        {
+            return mPrices + mNumPriceSteps + 1;
         }
 
         Real Valuate(Real price, Side side)

@@ -85,7 +85,7 @@ List CppPriceEuropeanUncertainVol(
 
     if (detail >= 1)
     {
-        NumericVector prices(pricer.GetPrices().begin(), pricer.GetPrices().end());
+        NumericVector prices(pricer.BeginPrices(), pricer.EndPrices());
 
         // Note: NumericVector doesn't work with std::back_inserter. Sub-optimal work around:
         std::vector<double> values;
