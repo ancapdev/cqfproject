@@ -16,11 +16,10 @@ Real const minVol = 0.10;
 Real const maxVol = 0.30;
 Real const timeToExpiry = 1.0;
 
-int const BENCHMARK_REPS = 10;
-
+int const BENCHMARK_REPS = 1000;
 
 // Very crude benchmarking routine. No statistical analysis, simply mean run time.
-void Benchmark(std::size_t minSteps = 20, std::size_t maxSteps = 300, std::size_t stepsStep = 10)
+void Benchmark(std::size_t minSteps = 50, std::size_t maxSteps = 300, std::size_t stepsStep = 50)
 {
     Stopwatch stopwatch;
 
