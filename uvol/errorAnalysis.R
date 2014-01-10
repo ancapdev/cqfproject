@@ -214,7 +214,9 @@ AnalyzeErrors <- function() {
            AnalyzeErrorsByGridPrice(scenario, option))
     
     # TODO
-    # ATM between grid prices FD linear vs FD cubic vs BS
+    # - ATM between grid prices FD linear vs FD cubic vs BS
+    # - Compare point sampled with averaged payoff
+    
   }
   # Note on odd vs even grid sizes (even always falls at grid for current price, odd always fall outside, assuming maxPrice = price * 2)
 }

@@ -1,6 +1,6 @@
 # Options
-options(uvol.steps1 = 170L)
-options(uvol.steps2 = 200L)
+options(uvol.steps1 = 210L)
+options(uvol.steps2 = 290L)
 
 
 # Compile C++ pricing module
@@ -51,7 +51,7 @@ PriceEuropeanUncertainRichardson <- function(scenario, options, side, steps1 = g
 
 
 # Produce 3D wireframe of value across finite difference grid used in pricing
-ChartPricing <- function(scenario, options, side, steps, chartRes = 25, zrot = 50) {
+ChartPricing <- function(scenario, options, side, steps, chartRes = 25, zrot = 40) {
   r <- PriceEuropeanUncertain(scenario, options, side, steps, detail = 2)
   
   g <- matrix(r$values, nrow = steps + 1)

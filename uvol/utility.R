@@ -32,11 +32,15 @@ CreatePut <- function(expiry, strike, ...) CreateOption(expiry, strike, "put", .
 CreateBinaryCall <- function(expiry, strike, ...) CreateOption(expiry, strike, "bcall", ...)
 CreateBinaryPut <- function(expiry, strike, ...) CreateOption(expiry, strike, "bput", ...)
 
+GetHedgeType <- function(exoticType) {
+  switch(exoticType, bcall = "call", bput = "put")
+}
+
 ConstructHedges <- function(exotic, quantities, strikes) {
   c <- length(quantities)
   
   hedges <- data.frame(
-    type = rep(substr(exotic$type, 2, 5), c),
+    type = rep(GetHedgeType(exotic$type), c),
     expiry = rep(exotic$expiry, c),
     qty = quantities,
     strike = strikes,

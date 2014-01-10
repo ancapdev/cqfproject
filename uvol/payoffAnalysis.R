@@ -77,7 +77,7 @@ CalculateAveragePayoffs <- function(options, prices1, prices2) {
 }
 
 # Generate ggplot2 payoff chart over a range of prices
-ChartPayoffs <- function(options, prices) {
+ChartPayoffs <- function(options, prices, includePoints = TRUE) {
   constituents <- lapply(
     seq_along(options$type),
     function(i)
@@ -93,28 +93,29 @@ ChartPayoffs <- function(options, prices) {
   
   all <- rbind(do.call(rbind, constituents), portfolio)
 
-  ggplot(all, aes(x = price, y = payoff, group = option, color = option)) +
-    geom_line() + geom_point()
+  p <- ggplot(all, aes(x = price, y = payoff, group = option, color = option)) +
+    geom_line()
+  
+  if (includePoints)
+    p <- p+ geom_point()
+  
+  return(p)
 }
 
-# Generate ggplot2 payoff chart over a range of prices using interval payoff calculations centered at midpoint between prices
-ChartAveragePayoffs <- function(options, prices) {
-  prices1 <- prices[-length(prices)]
-  prices2 <- prices[-1]
-  pricesMid <- 0.5 * (prices1 + prices2)
-
+# Generate ggplot2 payoff chart over a range of prices using interval payoff calculations centered at prices
+ChartAveragePayoffs <- function(options, prices, deltaPrice = prices[2] - prices[1]) {
   constituents <- lapply(
     seq_along(options$type),
     function(i)
       data.frame(
-        price = pricesMid,
+        price = prices,
         option = paste(options$strike[i], options$type[i]),
-        payoff = CalculateAveragePayoffs(options[i,], prices1, prices2)))
+        payoff = CalculateAveragePayoffs(options[i,], prices - deltaPrice, prices + deltaPrice)))
   
   portfolio <- data.frame(
-    price = pricesMid,
+    price = prices,
     option = 'portfolio',
-    payoff = CalculateAveragePayoffs(options, prices1, prices2))
+    payoff = CalculateAveragePayoffs(options, prices - deltaPrice, prices + deltaPrice))
 
   all <- rbind(do.call(rbind, constituents), portfolio)
   

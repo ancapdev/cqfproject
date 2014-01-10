@@ -49,6 +49,107 @@ OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes, maxit = 200) {
   return(OptimizationResult(result$par, result$value, result))
 }
 
+RunOptimization <- function(scenario, exotic, hedgeStrikes) {
+  # Estimate error
+  
+  hedgeType <- GetHedgeType(exotic$type)
+
+  maxRelError <- max(sapply(
+    c(scenario$minVol, scenario$maxVol),
+    function(vol) {
+      testScenario <- scenario
+      testScenario$minVol <- vol
+      testScenario$maxVol <- vol
+      testScenario$impliedVol <- vol
+      max(sapply(
+        c("bid", "ask"),
+        function(side) {
+          max(sapply(
+            hedgeStrikes,
+            function(strike) {
+              o <- CreateOption(exotic$expiry, strike, hedgeType)
+              fd <- PriceEuropeanUncertainRichardson(testScenario, o, side)
+              bs <- PriceEuropeanBS(testScenario, o)
+              return(abs(fd - bs) / bs)
+            }))
+        }))
+    }))
+  
+  conservativeRelError <- maxRelError * 5
+  
+  # Optimize bid and ask
+  opt <- list(
+    bid = OptimizeHedgeNlopt(scenario, exotic, "bid", hedgeStrikes),
+    ask = OptimizeHedgeNlopt(scenario, exotic, "ask", hedgeStrikes))
+  
+  # Calculate spread and relative spread (including conservative error estimate)
+  bid <- opt$bid$value * (1 - conservativeRelError)
+  ask <- opt$ask$value * (1 + conservativeRelError)
+
+  portfolio <- list(
+    bid = ConstructHedges(exotic, opt$bid$quantities, hedgeStrikes),
+    ask = ConstructHedges(exotic, opt$ask$quantities, hedgeStrikes))
+  
+  charts <- expand.grid(
+    side = c("bid", "ask"),
+    steps = c(getOption('uvol.steps1'), getOption('uvol.steps2')),
+    stringsAsFactors = FALSE)
+  
+  charts$priceChart <- mapply(
+    function(side, steps) I(list(ChartPricing(scenario, portfolio[[side]], side, steps, zrot = -40))),
+    charts$side, charts$steps)
+  
+  charts$precisePayoffChart <- mapply(
+    function(side, steps) {
+      # Calculate suitable price points for payoff chart
+      p <- c(exotic$strike, hedgeStrikes)
+      p <- sort(c(p - 0.001, p + 0.001))
+      p <- c(2 * p[1] - p[3], p, 2 * p[length(p)] - p[length(p) - 2])
+      
+      return(I(list(ChartPayoffs(portfolio[[side]], p))))
+    },
+    charts$side, charts$steps)
+  
+#   # Generate charts
+#   charts <- sapply(
+#     c("bid", "ask"),
+#     function(side) {
+#       portfolio <- rbind(exotic, ConstructHedges(exotic, opt[[side]]$quantities, hedgeStrikes))
+#       
+#       # Generate price grid and payoff charts for each side and default step sizes
+#       lapply(
+#         c(getOption('uvol.steps1'), getOption('uvol.steps2')),
+#         function(steps) {
+#           valuation <- PriceEuropeanUncertain(scenario, portfolio, side, steps, detail = 1)
+#           
+#           # Calculate suitable price points for payoff chart
+#           p <- c(exotic$strike, hedgeStrikes)
+#           p <- sort(c(p - 0.001, p + 0.001))
+#           p <- c(2 * p[1] - p[3], p, 2 * p[length(p)] - p[length(p) - 2])
+#           
+#           # Prices points for FD payoffs taken from subset of FD scheme returned prices
+#           p2 <- valuation$prices[valuation$prices > p[1] & valuation$prices < p[length(p)]]
+#           
+#           return(data.frame(
+#             steps = steps,
+#             side = side,
+#             priceChart = I(list(ChartPricing(scenario, portfolio, side, steps))),
+#             precisePayoffChart = I(list(ChartPayoffs(portfolio, p))),
+#             finiteDifferencePayoffChart = I(list(ChartAveragePayoffs(portfolio, p2)))))
+#         })
+#       
+#       # For 2 strikes, generate price chart over optimization domain
+#     })
+  
+  return(list(
+    bid = bid,
+    ask = ask,
+    spread = ask - bid,
+    relSpread = (ask - bid) / (0.5 * (ask + bid)),
+    portfolio = portfolio,
+    charts = charts))
+}
+
 ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
   res <- 25
   q <- quantities
