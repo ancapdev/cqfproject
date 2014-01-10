@@ -116,8 +116,6 @@ AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 201) {
 AnalyzeErrorsByStrike <- function(
   scenario,
   type,
-  steps1 = 180,
-  steps2 = 200,
   strikes = seq(scenario$underlyingPrice * 0.5,
                 scenario$underlyingPrice * 1.5,
                 length.out=101)) {
@@ -133,7 +131,7 @@ AnalyzeErrorsByStrike <- function(
         scenario$riskFreeRate,
         scenario$underlyingPrice,
         "bid", # arbitrary since minVol = maxVol
-        steps1,
+        getOption('uvol.steps1'),
         scenario$underlyingPrice * 2)$value)
   
   fd2 <- sapply(
@@ -146,14 +144,13 @@ AnalyzeErrorsByStrike <- function(
         scenario$riskFreeRate,
         scenario$underlyingPrice,
         "bid", # arbitrary since minVol = maxVol
-        steps2,
+        getOption('uvol.steps2'),
         scenario$underlyingPrice * 2)$value)
 
   # FD+Richardson values (using max steps = steps so that order complexity is the same as the plain FD sample)
   fdr <- sapply(
     strikes,
-    function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid", steps1, steps2, "linear"))
-    # function(s) PriceEuropeanUncertain2(scenario, CreateOption(1.0, s, type), "bid", steps1, "linear"))
+    function(s) PriceEuropeanUncertain(scenario, CreateOption(1.0, s, type), "bid"))
   
   # BS values
   bs <- sapply(

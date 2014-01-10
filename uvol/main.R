@@ -12,32 +12,6 @@ source("functionAnalysis.R")
 AnalyzeErrors()
 
 
-source("pricing.R")
-source("errorAnalysis.R")
-sce <- CreateScenario(0.2, 0.2)
-o <- CreatePut(1, 101)
-strikes <- seq(50, 150)
-AnalyzeErrorsByStrike(sce, "put", 100, 200)
-
-
-
-source("pricing.R")
-source("errorAnalysis.R")
-steps <- seq(30L, 110L, 1L)
-o2 <- CreateCall(1, 101)
-e1 <- AnalyzeErrorsByStep(sce, o2, steps, 20)
-e2 <- AnalyzeErrorsByStep(sce, o2, steps, 20, interpolation = "linear")
-grid.arrange(e1, e2)
-
-o2 <- CreateCall(1, 99)
-r <- CppPriceEuropeanUncertainVol(o2, 0.2, 0.2, 0.05, 100, "bid", 101, 200, "cubic", 2)
-m <- matrix(r$values, nrow = length(r$prices))
-payoff <- m[,1]
-value <- m[,ncol(m)]
-qplot(r$prices[48:53], payoff[48:53])
-
-
-
 # References
 #
 # Convergence Remedies For Non-Smooth Payoffs in Option Pricing
