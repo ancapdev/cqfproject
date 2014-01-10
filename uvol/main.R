@@ -8,8 +8,19 @@ source("utility.R")
 source("optimization.R")
 source("errorAnalysis.R")
 source("functionAnalysis.R")
+source("payoffAnalysis.R")
 
 AnalyzeErrors()
+
+
+source("payoffAnalysis.R")
+o <- rbind(
+  CreateCall(1, 100),
+  CreateBinaryCall(1, 100.0))
+prices <- seq(97, 102, 1)
+c1 <- ChartPayoffs(o, prices[-1])
+c2 <- ChartAveragePayoffs(o, prices + 0.5)
+grid.arrange(c1, c2)
 
 
 # References
@@ -26,63 +37,6 @@ AnalyzeErrors()
 # http://www.sce.carleton.ca/faculty/chinneck/MProbe/MProbePaper2.pdf
 # 2.1 Function Shape
 
-
-CalculatePayoffs <- function(options, prices) {
-  sapply(
-    prices,
-    function(price) {
-      sum(
-        mapply(
-          function(type, strike) {
-            switch(
-              type,
-              call = max(price - strike, 0),
-              put = max(strike - price, 0),
-              bcall = if(price > strike) 1 else 0,
-              bput = if(price < strike) 1 else 0)
-          },
-          options$type, options$strike,
-          USE.NAMES = FALSE) * options$qty)
-    })
-}
-
-CalculateAveragePayoff <- function(type, strike, price1, price2) {
-  switch(
-    type,
-    
-    # TODO: verify
-    call =
-      if(price1 > strike)
-        0.5 * (price1 + price2) - strike
-      else if (price2 > strike)
-        0.5 * (price2 - strike)^2 / (price2 - price1)
-      else
-        0,
-
-    put =
-      if(price2 < strike)
-        strike - 0.5 * (price1 + price2)
-      else if (price1 < strike)
-        0.5 * (strike - price1)^2 / (price2 - price1)
-      else
-        0,
-
-    bcall =
-      if(price1 > strike)
-        1
-      else if (price2 > strike)
-        (price2 - strike) / (price2 - price1)
-      else
-        0,
-    
-    bput =
-      if(price2 < strike)
-        1
-      else if (price1 < strike)
-        (strike - price1) / (price2 - price1)
-      else
-        0)
-}
 
 CalculateFDPayoffs <- function(options, maxPrice, priceSteps) {
   prices <- seq(0, maxPrice, length.out = priceSteps + 1)
