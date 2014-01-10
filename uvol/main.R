@@ -19,39 +19,14 @@ o <- CreatePut(1, 101)
 strikes <- seq(50, 150)
 AnalyzeErrorsByStrike(sce, "put", 100, 200)
 
-cfdr <- sapply(
-  strikes,
-  function(s) PriceEuropeanUncertain(sce, CreateOption(1.0, s, "call"), "bid", 189, 201, "cubic"))
-
-
-lfdr <- sapply(
-  strikes,
-  function(s) PriceEuropeanUncertain(sce, CreateOption(1.0, s, "call"), "bid", 189, 201, "linear"))
-
-bs <- sapply(
-  strikes,
-  function(s) PriceEuropeanBS(sce, CreateOption(1.0, s, "call")))
-
-cfdre <- abs(cfdr - bs)
-lfdre <- abs(lfdr - bs)
-cimprov <- lfdre / cfdre
-
-qplot(strikes, cimprov)
-
-
-cfdr2 <- sapply(
-  strikes,
-  function(s) PriceEuropeanUncertain2(sce, CreateOption(1.0, s, "call"), "bid", 101, "cubic"))
-
-plot(strikes, cfdr2 - bs)
 
 
 source("pricing.R")
 source("errorAnalysis.R")
-steps <- seq(100L, 110L, 1L)
+steps <- seq(30L, 110L, 1L)
 o2 <- CreateCall(1, 101)
-e1 <- AnalyzeErrorsByStep(sce, o, steps, 20)
-e2 <- AnalyzeErrorsByStep(sce, o2, steps, 20, interpolation = "cubic")
+e1 <- AnalyzeErrorsByStep(sce, o2, steps, 20)
+e2 <- AnalyzeErrorsByStep(sce, o2, steps, 20, interpolation = "linear")
 grid.arrange(e1, e2)
 
 o2 <- CreateCall(1, 99)
@@ -60,34 +35,6 @@ m <- matrix(r$values, nrow = length(r$prices))
 payoff <- m[,1]
 value <- m[,ncol(m)]
 qplot(r$prices[48:53], payoff[48:53])
-
-
-bs1 <- PriceEuropeanBS(CreateScenario(0.2, 0.2, underlyingPrice = r$prices[50]), o2)
-value[50] - bs1
-
-bs2 <- PriceEuropeanBS(CreateScenario(0.2, 0.2, underlyingPrice = r$prices[51]), o2)
-value[51] - bs2
-
-bs3 <- PriceEuropeanBS(CreateScenario(0.2, 0.2, underlyingPrice = 100), o2)
-r$value - bs3
-
-
-ds <- r$prices[2] - r$prices[1]
-index <- 52
-v0 <- value[index - 1]
-v1 <- value[index]
-k <- (r$prices[index] - 100) / ds
-v <- v0 * k + v1 * (1 - k)
-print(v - r$value)
-print(v0)
-print(v1)
-print(k)
-print(v)
-print(v - bs)
-
-
-
-
 
 
 
@@ -104,9 +51,6 @@ print(v - bs)
 # John W Chinneck, 2000
 # http://www.sce.carleton.ca/faculty/chinneck/MProbe/MProbePaper2.pdf
 # 2.1 Function Shape
-
-
-
 
 
 CalculatePayoffs <- function(options, prices) {
@@ -131,16 +75,32 @@ CalculatePayoffs <- function(options, prices) {
 CalculateAveragePayoff <- function(type, strike, price1, price2) {
   switch(
     type,
-    call = 0.5 * (max(price1 - strike, 0) + max(price2 - strike, 0)),
-    put = 0.5 * (max(strike - price1, 0) + max(strike - price2, 0)),
+    
+    # TODO: verify
+    call =
+      if(price1 > strike)
+        0.5 * (price1 + price2) - strike
+      else if (price2 > strike)
+        0.5 * (price2 - strike)^2 / (price2 - price1)
+      else
+        0,
+
+    put =
+      if(price2 < strike)
+        strike - 0.5 * (price1 + price2)
+      else if (price1 < strike)
+        0.5 * (strike - price1)^2 / (price2 - price1)
+      else
+        0,
+
     bcall =
-      # TODO: fix
       if(price1 > strike)
         1
       else if (price2 > strike)
         (price2 - strike) / (price2 - price1)
       else
         0,
+    
     bput =
       if(price2 < strike)
         1
@@ -166,63 +126,12 @@ CalculateFDPayoffs <- function(options, maxPrice, priceSteps) {
   return(data.frame(price = prices, payoff = payoffs))
 }
 
-ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
-  res <- 25
-  q <- quantities
-  
-  quantities <- expand.grid(
-    q1 = seq(q[1] * 0.0, q[1] * 2.0, length.out = res),
-    q2 = seq(q[2] * 0.0, q[2] * 2.0, length.out = res))
-  
-  value <- apply(
-    quantities,
-    1,
-    function(x) CalculateHedgedPrice(scenario, exotic, side, x, hedgeStrikes))
-  
-  data <- cbind(quantities, value)
-  
-  wireframe(
-    value ~ q1 * q2,
-    data = data,
-    screen = list(z=-30, x=-60, y=0),
-    # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
-    scales = list(arrows = FALSE),
-    drape = TRUE,
-    pretty = TRUE)
-}
-
-ChartOptimization2 <- function(scenario, exotic, side, hedgeStrikes, quantities) {
-  res <- 25
-  baseQuantity <- quantities[1]
-  baseScale <- quantities[2] / quantities[1]
-  
-  baseAndScale <- expand.grid(
-    base = seq(baseQuantity * 0, baseQuantity * 2.0, length.out = res),
-    scale = seq(baseScale * 0, baseScale * 2.0, length.out = res))
-  
-  value <- apply(
-    baseAndScale,
-    1,
-    function(x) CalculateHedgedPrice(scenario, exotic, side, c(x[1], x[1] * x[2]), hedgeStrikes))
-  
-  data <- cbind(baseAndScale, value)
-  
-  wireframe(
-    value ~ base * scale,
-    data = data,
-    screen = list(z=-30, x=-60, y=0),
-    # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
-    scales = list(arrows = FALSE),
-    drape = TRUE,
-    pretty = TRUE)
-}
-
 # TODO: should take prices (or price steps) as parameter, so chart can be aligned with FD grid
 # TODO: should be able to calculate average payoff between prices in grid
 ChartPayoffs <- function(exotic, hedgeQuantities, hedgeStrikes) {
   hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
   portfolio <- rbind(exotic, hedges)
-  prices <- seq(exotic$strike * 0.8, exotic$strike * 1.2, length.out = 1000)
+  prices <- seq(exotic$strike * 0.95, exotic$strike * 1.05, length.out = 1000)
   payoffs <- CalculatePayoffs(portfolio, prices)
   ggplot(data.frame(price = prices, payoff = payoffs), aes(x = price, y = payoff)) +
     geom_line()
@@ -256,10 +165,10 @@ RunOptimizationScenario <- function(scenario, exotic, hedgeStrikes, ...) {
   portfolio <- rbind(exotic, hedges)
   
   p0 <- ChartPayoffs(exotic, opt$bid$quantities, hedgeStrikes)
-  p1 <- ChartFDPayoffs(portfolio, 200, 101, 80, 120)
-  p2 <- ChartFDPayoffs(portfolio, 200, 202, 80, 120)
+  p1 <- ChartFDPayoffs(portfolio, 200, 170, 95, 105)
+  p2 <- ChartFDPayoffs(portfolio, 200, 200, 95, 105)
   grid.arrange(p0, p1, p2)
-  
+    
   return(opt)
 }
 

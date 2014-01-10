@@ -19,7 +19,7 @@ PriceEuropeanBS <- function(scenario, options) {
 #     scenario$impliedVol)$value
 }
 
-PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 181L, steps2 = 201L, interpolation = "cubic") {
+PriceEuropeanUncertain <- function(scenario, options, side, steps1 = 170L, steps2 = 200L, interpolation = "cubic") {
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
 
