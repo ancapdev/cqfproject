@@ -51,7 +51,7 @@ PriceEuropeanUncertainRichardson <- function(scenario, options, side, steps1 = g
 
 
 # Produce 3D wireframe of value across finite difference grid used in pricing
-ChartPricing <- function(scenario, options, side, steps, chartRes = 25) {
+ChartPricing <- function(scenario, options, side, steps, chartRes = 25, zrot = 50) {
   r <- PriceEuropeanUncertain(scenario, options, side, steps, detail = 2)
   
   g <- matrix(r$values, nrow = steps + 1)
@@ -65,9 +65,10 @@ ChartPricing <- function(scenario, options, side, steps, chartRes = 25) {
     xlab = "Price",
     ylab = "Time",
     zlab = "Value",
-    perspective = FALSE,
+    # perspective = FALSE,
+    screen = list(z=zrot, x=-70, y=0),
     par.settings = list(
-      box.3d = list(col=c(1, 1, 0, 0, 1, 0, 1, 1, 1)),
+      box.3d = list(col=c(1, if (zrot < 0) 0 else 1, 0, if (zrot < 0) 1 else 0, 1, 0, 1, 1, 1)),
       axis.line = list(col = "transparent")),
     scales = list(
       arrows = FALSE,

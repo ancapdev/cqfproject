@@ -14,10 +14,17 @@ AnalyzeErrors()
 
 
 source("pricing.R")
-ChartPricing(
+p1 <- ChartPricing(
   CreateScenario(0.1, 0.3),
-  rbind(CreateCall(1, 100), CreatePut(1, 100)),
-  "ask", 100)
+  CreateCall(1, 100),
+  "ask", 100, zrot = 30)
+
+p2 <- ChartPricing(
+  CreateScenario(0.1, 0.3),
+  CreatePut(1, 100),
+  "ask", 100, zrot = -30)
+
+grid.arrange(p1, p2)
 
 
 r <- PriceEuropeanUncertain(CreateScenario(0.1, 0.3), CreateCall(1, 100), "ask", 100, detail = 2)
