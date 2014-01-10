@@ -65,9 +65,15 @@ ChartPricing <- function(scenario, options, side, steps, chartRes = 25) {
     xlab = "Price",
     ylab = "Time",
     zlab = "Value",
-    par.settings = list(box.3d = list(col=c(1, 1, 0, 0, 1, 0, 1, 1, 1))),
-    scales = list(arrows = FALSE),
+    perspective = FALSE,
+    par.settings = list(
+      box.3d = list(col=c(1, 1, 0, 0, 1, 0, 1, 1, 1)),
+      axis.line = list(col = "transparent")),
+    scales = list(
+      arrows = FALSE,
+      col = 1),
     col.regions = colorRampPalette(c("ivory", "lightsteelblue1", "lightsteelblue4"))(1000),
+    colorkey = FALSE,
     drape = TRUE,
     pretty = TRUE)
 }
