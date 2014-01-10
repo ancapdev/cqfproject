@@ -14,6 +14,7 @@ print.OptimizationResult <- function(x, ...) {
   cat("Value: ", x$value, "\n")
 }
 
+# Optimize hedge for exotic for a given side, using one of nlopt's optimization algorithms
 OptimizeHedgeNlopt <- function(scenario, exotic, side, hedgeStrikes, algorithm = "NLOPT_LN_NELDERMEAD", maxit = 1000) {
   # Maximize bid by minizing -bid
   scale = switch(side, bid = -1, ask = 1)
@@ -33,6 +34,7 @@ OptimizeHedgeNlopt <- function(scenario, exotic, side, hedgeStrikes, algorithm =
   return(OptimizationResult(result$solution, result$objective * scale, result))
 }
 
+# Optimize hedge for exotic for a given side, using one of R's built in optimization algorithm
 OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes, maxit = 200) {
   result <- optim(
     rep(0, length(hedgeStrikes)),
@@ -46,8 +48,6 @@ OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes, maxit = 200) {
   
   return(OptimizationResult(result$par, result$value, result))
 }
-
-
 
 ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
   res <- 25

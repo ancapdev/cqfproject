@@ -18,19 +18,19 @@ CreateScenario <- function(
   obj
 }
 
-CreateOption <- function(expiry, strike, type) {
+CreateOption <- function(expiry, strike, type, qty = 1) {
   data.frame(
     type = type,
     expiry = expiry,
-    qty = 1.0,
+    qty = qty,
     strike = strike,
     stringsAsFactors = FALSE)
 }
 
-CreateCall <- function(expiry, strike) CreateOption(expiry, strike, "call")
-CreatePut <- function(expiry, strike) CreateOption(expiry, strike, "put")
-CreateBinaryCall <- function(expiry, strike) CreateOption(expiry, strike, "bcall")
-CreateBinaryPut <- function(expiry, strike) CreateOption(expiry, strike, "bput")
+CreateCall <- function(expiry, strike, ...) CreateOption(expiry, strike, "call", ...)
+CreatePut <- function(expiry, strike, ...) CreateOption(expiry, strike, "put", ...)
+CreateBinaryCall <- function(expiry, strike, ...) CreateOption(expiry, strike, "bcall", ...)
+CreateBinaryPut <- function(expiry, strike, ...) CreateOption(expiry, strike, "bput", ...)
 
 ConstructHedges <- function(exotic, quantities, strikes) {
   c <- length(quantities)
@@ -58,7 +58,7 @@ CreateHedgedPricer <- function(scenario, exotic, side, hedgeStrikes) {
     # Update hedge quantities
     portfolio$qty[2:nrow(portfolio)] <- hedgeQuantities
     # Price portfolio
-    portfolioValue <- PriceEuropeanUncertain(scenario, portfolio, side)
+    portfolioValue <- PriceEuropeanUncertainRichardson(scenario, portfolio, side)
     # Price market hedge cost
     hedgeCost <- sum(hedgeValues * hedgeQuantities)
     # Back out exotic value

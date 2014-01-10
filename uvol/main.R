@@ -13,14 +13,46 @@ source("payoffAnalysis.R")
 AnalyzeErrors()
 
 
-source("payoffAnalysis.R")
-o <- rbind(
-  CreateCall(1, 100),
-  CreateBinaryCall(1, 100.0))
-prices <- seq(97, 102, 1)
-c1 <- ChartPayoffs(o, prices[-1])
-c2 <- ChartAveragePayoffs(o, prices + 0.5)
-grid.arrange(c1, c2)
+source("pricing.R")
+ChartPricing(
+  CreateScenario(0.1, 0.3),
+  rbind(CreateCall(1, 100), CreatePut(1, 100)),
+  "ask", 100)
+
+
+r <- PriceEuropeanUncertain(CreateScenario(0.1, 0.3), CreateCall(1, 100), "ask", 100, detail = 2)
+
+res <- 25
+g <- matrix(r$values, nrow = 101)
+g2 <- g[,seq(1, ncol(g), length.out = res)]
+g2 <- g2[seq(1, nrow(g2), length.out = res),]
+
+wireframe(
+  g2,
+  row.values = seq(0, 200, length.out = nrow(g2)),
+  column.values = seq(1, 0, length.out = ncol(g2)),
+  xlab = "Price",
+  ylab = "Time",
+  zlab = "Value",
+  scales = list(arrows = FALSE),
+  col.regions = colorRampPalette(c("ivory", "lightsteelblue1", "lightsteelblue4"))(1000),
+  drape = TRUE,
+  pretty = TRUE)
+
+
+
+wireframe(
+  value ~ q1 * q2,
+  data = data,
+  screen = list(z=-30, x=-60, y=0),
+  # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
+  scales = list(arrows = FALSE),
+  drape = TRUE,
+  pretty = TRUE)
+
+
+
+
 
 
 # References
@@ -33,45 +65,11 @@ grid.arrange(c1, c2)
 #
 #
 # Discovering the Characteristics of Mathematical Programs via Sampling 
-# John W Chinneck, 2000
+# John W Chinneck, 2000fin
 # http://www.sce.carleton.ca/faculty/chinneck/MProbe/MProbePaper2.pdf
 # 2.1 Function Shape
 
 
-CalculateFDPayoffs <- function(options, maxPrice, priceSteps) {
-  prices <- seq(0, maxPrice, length.out = priceSteps + 1)
-  halfDeltaPrice <- (prices[2] - prices[1]) / 2
-  payoffs <- sapply(
-    prices,
-    function(price) {
-      sum(
-        mapply(
-          function(type, strike) CalculateAveragePayoff(type, strike, price - halfDeltaPrice, price + halfDeltaPrice),
-          options$type, options$strike,
-          USE.NAMES = FALSE) * options$qty)
-    })
-  
-  return(data.frame(price = prices, payoff = payoffs))
-}
-
-# TODO: should take prices (or price steps) as parameter, so chart can be aligned with FD grid
-# TODO: should be able to calculate average payoff between prices in grid
-ChartPayoffs <- function(exotic, hedgeQuantities, hedgeStrikes) {
-  hedges <- ConstructHedges(exotic, hedgeQuantities, hedgeStrikes)
-  portfolio <- rbind(exotic, hedges)
-  prices <- seq(exotic$strike * 0.95, exotic$strike * 1.05, length.out = 1000)
-  payoffs <- CalculatePayoffs(portfolio, prices)
-  ggplot(data.frame(price = prices, payoff = payoffs), aes(x = price, y = payoff)) +
-    geom_line()
-}
-
-ChartFDPayoffs <- function(portfolio, maxPrice, priceSteps, minChartPrice, maxChartPrice) {
-  p <- CalculateFDPayoffs(portfolio, maxPrice, priceSteps)
-  # TODO: could probably limit range in ggplot instead..
-  p <- p[p$price >= minChartPrice & p$price <= maxChartPrice,]
-  ggplot(p, aes(x = price, y = payoff)) +
-    geom_line()
-}
 
 OptimizeBidAsk <- function(scenario, exotic, hedgeStrikes, ...) {
   bidOpt <- OptimizeHedgeNlopt(scenario, exotic, "bid", hedgeStrikes, ...)
