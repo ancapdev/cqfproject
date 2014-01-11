@@ -16,11 +16,12 @@ PriceEuropeanBS <- function(scenario, options) {
 }
 
 # Price a european option using finite difference, allowing for uncertain volatility
-PriceEuropeanUncertain <- function(scenario, options, side, steps, interpolation = c("cubic", "linear"), detail = 0) {
+PriceEuropeanUncertain <- function(scenario, options, side, steps, interpolation = c("cubic", "linear"), payoffSampling = c("interval", "point"), detail = 0) {
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
   
   interpolation <- match.arg(interpolation)
+  payoffSampling <- match.arg(payoffSampling)
   
   CppPriceEuropeanUncertainVol(
     options,
@@ -32,12 +33,22 @@ PriceEuropeanUncertain <- function(scenario, options, side, steps, interpolation
     steps,
     maxPrice,
     interpolation,
+    payoffSampling,
     detail)
 }
 
 # Price a european option using finite difference with Richardson extrapolation, allowing for uncertain volatility
-PriceEuropeanUncertainRichardson <- function(scenario, options, side, steps1 = getOption('uvol.steps1'), steps2 = getOption('uvol.steps2'), interpolation = c("cubic", "linear")) {
+PriceEuropeanUncertainRichardson <- function(
+  scenario,
+  options,
+  side,
+  steps1 = getOption('uvol.steps1'),
+  steps2 = getOption('uvol.steps2'),
+  interpolation = c("cubic", "linear"),
+  payoffSampling = c("interval", "point")) {
+  
   interpolation <- match.arg(interpolation)
+  payoffSampling <- match.arg(payoffSampling)
   
   # Prices using a given number of asset steps
   helper <- function(steps) PriceEuropeanUncertain(scenario, options, side, steps, interpolation)$value
@@ -65,7 +76,6 @@ ChartPricing <- function(scenario, options, side, steps, chartRes = 25, zrot = 4
     xlab = "Price",
     ylab = "Time",
     zlab = "Value",
-    # perspective = FALSE,
     screen = list(z=zrot, x=-70, y=0),
     par.settings = list(
       box.3d = list(col=c(1, if (zrot < 0) 0 else 1, 0, if (zrot < 0) 1 else 0, 1, 0, 1, 1, 1)),

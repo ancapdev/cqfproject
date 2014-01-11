@@ -16,14 +16,34 @@ namespace CqfProject
             , multiplier(multiplier)
         {}
 
-        // TODO: Flag to switch on point sampling
+        // Calculate payoff at price
+        Real CalculatePayoff(Real price, Real epsilon = 0.0001) const
+        {
+            switch(type)
+            {
+            case Type::CALL:
+                return std::max(price - strike, Real(0));
+
+            case Type::PUT:
+                return std::max(strike - price, Real(0));
+
+            case Type::BINARY_CALL:
+                return price > (strike - epsilon) ? Real(1) : Real(0);
+
+            case Type::BINARY_PUT:
+                return price < (strike + epsilon) ? Real(1) : Real(0);
+
+            default:
+                throw std::runtime_error("invalid option type");
+            }
+        }
+
         // Calculates average payoff in the interval [price1, price2)
         Real CalculateAveragePayoff(Real price1, Real price2) const
         {
             switch (type)
             {
             case Type::CALL:
-                // return Real(0.5) * (std::max(price1 - strike, Real(0)) + std::max(price2 - strike, Real(0)));
                 return price1 > strike
                     ? Real(0.5) * (price1 + price2) - strike
                     : price2 > strike
@@ -31,7 +51,6 @@ namespace CqfProject
                     : Real(0);
 
             case Type::PUT:
-                // return Real(0.5) * (std::max(strike - price1, Real(0)) + std::max(strike - price2, Real(0)));
                 return price2 < strike
                     ? strike - Real(0.5) * (price1 + price2)
                     : price1 < strike

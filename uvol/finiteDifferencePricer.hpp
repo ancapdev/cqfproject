@@ -27,6 +27,12 @@ namespace CqfProject
         CUBIC
     };
 
+    enum class PayoffSampling
+    {
+        POINT,
+        INTERVAL
+    };
+
     class FiniteDifferencePricer
     {
     public:
@@ -48,12 +54,14 @@ namespace CqfProject
             Real rate,
             Real maxPrice,
             std::size_t numPriceSteps,
+            PayoffSampling payoffSampling = PayoffSampling::INTERVAL,
             Interpolation interpolation = Interpolation::LINEAR)
             : mMinVol(minVol)
             , mMaxVol(maxVol)
             , mRate(rate)
             , mMaxPrice(maxPrice)
             , mNumPriceSteps(std::max(numPriceSteps, (std::size_t)3))
+            , mPayoffSampling(payoffSampling)
             , mInterpolation(interpolation)
             , mDeltaPrice(maxPrice / numPriceSteps)
             , mTargetDeltaTime(Real(0.9) / (numPriceSteps * numPriceSteps * maxVol * maxVol))
@@ -195,10 +203,18 @@ namespace CqfProject
                 OptionContract const& contract = mContracts[contractIndex];
 
                 // Add payoffs
-                for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
-                    current[i] += contract.CalculateAveragePayoff(
-                        prices[i] - halfDeltaPrice,
-                        prices[i] + halfDeltaPrice) * contract.multiplier;
+                if (mPayoffSampling == PayoffSampling::POINT)
+                {
+                    for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
+                        current[i] += contract.CalculatePayoff(prices[i]);
+                }
+                else
+                {
+                    for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
+                        current[i] += contract.CalculateAveragePayoff(
+                            prices[i] - halfDeltaPrice,
+                            prices[i] + halfDeltaPrice) * contract.multiplier;
+                }
 
                 // Find next expiry and time to it
                 Real const nextExpiry = contractIndex == mContracts.size() - 1 ? Real(0) : mContracts[contractIndex + 1].expiry;
@@ -357,6 +373,7 @@ namespace CqfProject
         Real mRate;
         Real mMaxPrice;
         std::size_t mNumPriceSteps;
+        PayoffSampling mPayoffSampling;
         Interpolation mInterpolation;
         std::vector<OptionContract> mContracts;
 

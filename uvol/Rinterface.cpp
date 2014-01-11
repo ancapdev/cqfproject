@@ -28,6 +28,17 @@ Interpolation ToInterpolation(std::string const& s)
         throw std::runtime_error("invalid interpolation");
 }
 
+PayoffSampling ToPayoffSampling(std::string const& s)
+{
+    if (s == "point")
+        return PayoffSampling::POINT;
+    else if (s == "interval")
+        return PayoffSampling::INTERVAL;
+    else
+        throw std::runtime_error("invalid payoff sampling");
+}
+
+
 template<typename StringType>
 OptionContract::Type ToContractType(StringType s)
 {
@@ -71,6 +82,7 @@ List CppPriceEuropeanUncertainVol(
     int priceSteps,
     double maxPrice,
     std::string interpolation = "cubic",
+    std::string payoffSampling = "interval",
     int detail = 0)
 {
     FiniteDifferencePricer pricer(
@@ -79,6 +91,7 @@ List CppPriceEuropeanUncertainVol(
         riskFreeRate,
         maxPrice,
         priceSteps,
+        ToPayoffSampling(payoffSampling),
         ToInterpolation(interpolation));
 
     PopulateContracts(pricer, options);

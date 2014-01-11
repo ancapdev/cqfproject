@@ -50,104 +50,100 @@ OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes, maxit = 200) {
 }
 
 RunOptimization <- function(scenario, exotic, hedgeStrikes) {
-  # Estimate error
-  
-  hedgeType <- GetHedgeType(exotic$type)
-
-  maxRelError <- max(sapply(
-    c(scenario$minVol, scenario$maxVol),
-    function(vol) {
-      testScenario <- scenario
-      testScenario$minVol <- vol
-      testScenario$maxVol <- vol
-      testScenario$impliedVol <- vol
-      max(sapply(
-        c("bid", "ask"),
-        function(side) {
-          max(sapply(
-            hedgeStrikes,
-            function(strike) {
-              o <- CreateOption(exotic$expiry, strike, hedgeType)
-              fd <- PriceEuropeanUncertainRichardson(testScenario, o, side)
-              bs <- PriceEuropeanBS(testScenario, o)
-              return(abs(fd - bs) / bs)
-            }))
-        }))
-    }))
-  
-  conservativeRelError <- maxRelError * 5
-  
   # Optimize bid and ask
   opt <- list(
     bid = OptimizeHedgeNlopt(scenario, exotic, "bid", hedgeStrikes),
     ask = OptimizeHedgeNlopt(scenario, exotic, "ask", hedgeStrikes))
   
-  # Calculate spread and relative spread (including conservative error estimate)
-  bid <- opt$bid$value * (1 - conservativeRelError)
-  ask <- opt$ask$value * (1 + conservativeRelError)
-
+  # Construct optimized portfolios
   portfolio <- list(
-    bid = ConstructHedges(exotic, opt$bid$quantities, hedgeStrikes),
-    ask = ConstructHedges(exotic, opt$ask$quantities, hedgeStrikes))
+    bid = rbind(exotic, ConstructHedges(exotic, opt$bid$quantities, hedgeStrikes)),
+    ask = rbind(exotic, ConstructHedges(exotic, opt$ask$quantities, hedgeStrikes)))
   
-  charts <- expand.grid(
-    side = c("bid", "ask"),
-    steps = c(getOption('uvol.steps1'), getOption('uvol.steps2')),
-    stringsAsFactors = FALSE)
-  
-  charts$priceChart <- mapply(
-    function(side, steps) I(list(ChartPricing(scenario, portfolio[[side]], side, steps, zrot = -40))),
-    charts$side, charts$steps)
-  
-  charts$precisePayoffChart <- mapply(
-    function(side, steps) {
-      # Calculate suitable price points for payoff chart
-      p <- c(exotic$strike, hedgeStrikes)
-      p <- sort(c(p - 0.001, p + 0.001))
-      p <- c(2 * p[1] - p[3], p, 2 * p[length(p)] - p[length(p) - 2])
+  # Estimate errors in portfolio pricing (based on constant volatility)
+  calculateError <- function(side) {
+    max(sapply(
+      c(scenario$minVol, scenario$maxVol),
+      function(vol) {
+        testScenario <- scenario
+        testScenario$minVol <- vol
+        testScenario$maxVol <- vol
+        testScenario$impliedVol <- vol
       
-      return(I(list(ChartPayoffs(portfolio[[side]], p))))
-    },
-    charts$side, charts$steps)
+        fd <- PriceEuropeanUncertainRichardson(testScenario, portfolio[[side]], side)
+        bs <- PriceEuropeanBS(testScenario, portfolio[[side]])
+        return(abs((fd - bs) / bs))
+      }))
+  }
+
+  # Make conservative estimate of error as multiple of calculated error
+  relError = list(
+    bid = calculateError("bid") * 2,
+    ask = calculateError("ask") * 2)
   
-#   # Generate charts
-#   charts <- sapply(
-#     c("bid", "ask"),
-#     function(side) {
-#       portfolio <- rbind(exotic, ConstructHedges(exotic, opt[[side]]$quantities, hedgeStrikes))
-#       
-#       # Generate price grid and payoff charts for each side and default step sizes
-#       lapply(
-#         c(getOption('uvol.steps1'), getOption('uvol.steps2')),
-#         function(steps) {
-#           valuation <- PriceEuropeanUncertain(scenario, portfolio, side, steps, detail = 1)
-#           
-#           # Calculate suitable price points for payoff chart
-#           p <- c(exotic$strike, hedgeStrikes)
-#           p <- sort(c(p - 0.001, p + 0.001))
-#           p <- c(2 * p[1] - p[3], p, 2 * p[length(p)] - p[length(p) - 2])
-#           
-#           # Prices points for FD payoffs taken from subset of FD scheme returned prices
-#           p2 <- valuation$prices[valuation$prices > p[1] & valuation$prices < p[length(p)]]
-#           
-#           return(data.frame(
-#             steps = steps,
-#             side = side,
-#             priceChart = I(list(ChartPricing(scenario, portfolio, side, steps))),
-#             precisePayoffChart = I(list(ChartPayoffs(portfolio, p))),
-#             finiteDifferencePayoffChart = I(list(ChartAveragePayoffs(portfolio, p2)))))
-#         })
-#       
-#       # For 2 strikes, generate price chart over optimization domain
-#     })
+  # Calculate spread and relative spread (including conservative error estimate)
+  bid <- opt$bid$value
+  ask <- opt$ask$value
+  adjustedBid <- bid * (1 - relError$bid)
+  adjustedAsk <- ask * (1 + relError$ask)
+
+  # Charts of value across finite difference pricing grid
+  pricingChart = list(
+    steps1 = list(
+      bid = ChartPricing(scenario, portfolio$bid, "bid", getOption('uvol.steps1'), zrot = -40),
+      ask = ChartPricing(scenario, portfolio$ask, "ask", getOption('uvol.steps1'), zrot = -40)),
+    steps2 = list(
+      bid = ChartPricing(scenario, portfolio$bid, "bid", getOption('uvol.steps2'), zrot = -40),
+      ask = ChartPricing(scenario, portfolio$ask, "ask", getOption('uvol.steps2'), zrot = -40)))
+
+  # Charts of precise payoffs
+  chartPrecise <- function(side) {
+    p <- c(exotic$strike, hedgeStrikes)
+    p <- sort(c(p - 0.001, p + 0.001))
+    p <- c(0, p, scenario$underlyingPrice * 2)
+    
+    return(ChartPayoffs(portfolio[[side]], p))
+  }
   
+  precisePayoffChart <- list(
+    bid = chartPrecise("bid"),
+    ask = chartPrecise("ask"))
+  
+  # Charts of finite difference grid payoffs
+  fdPayoffChart <- list(
+    steps1 = list(
+      bid = ChartAveragePayoffs(portfolio$bid, seq(0, scenario$underlyingPrice * 2, length.out = getOption('uvol.steps1') + 1)),
+      ask = ChartAveragePayoffs(portfolio$ask, seq(0, scenario$underlyingPrice * 2, length.out = getOption('uvol.steps1') + 1))),
+    steps2 = list(
+      bid = ChartAveragePayoffs(portfolio$bid, seq(0, scenario$underlyingPrice * 2, length.out = getOption('uvol.steps2') + 1)),
+      ask = ChartAveragePayoffs(portfolio$ask, seq(0, scenario$underlyingPrice * 2, length.out = getOption('uvol.steps2') + 1))))
+  
+
+  # TODO: For 2 strikes, generate price chart over optimization domain
+  optimizationChart <- if (length(hedgeStrikes) == 2) {
+    list(
+      bid = ChartOptimization(scenario, exotic, "bid", hedgeStrikes, opt$bid$quantities),
+      ask = ChartOptimization(scenario, exotic, "ask", hedgeStrikes, opt$ask$quantities))
+  } else {
+    NULL
+  }
+
   return(list(
+    opt = opt,
     bid = bid,
     ask = ask,
     spread = ask - bid,
     relSpread = (ask - bid) / (0.5 * (ask + bid)),
+    relError = relError,
+    adjustedBid = adjustedBid,
+    adjustedAsk = adjustedAsk,
+    adjustedSpread = adjustedAsk - adjustedBid,
+    adjustedRelSpread = (adjustedAsk - adjustedBid) / (0.5 * (adjustedAsk + adjustedBid)),
     portfolio = portfolio,
-    charts = charts))
+    precisePayoffChart = precisePayoffChart,
+    fdPayoffChart = fdPayoffChart,
+    pricingChart = pricingChart,
+    optimizationChart = optimizationChart))
 }
 
 ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
@@ -157,46 +153,93 @@ ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) 
   quantities <- expand.grid(
     q1 = seq(q[1] * 0.0, q[1] * 2.0, length.out = res),
     q2 = seq(q[2] * 0.0, q[2] * 2.0, length.out = res))
-  
-  value <- apply(
-    quantities,
-    1,
-    function(x) CalculateHedgedPrice(scenario, exotic, side, x, hedgeStrikes))
+
+  value <- apply(quantities, 1, CreateHedgedPricer(scenario, exotic, side, hedgeStrikes))
   
   data <- cbind(quantities, value)
   
   wireframe(
     value ~ q1 * q2,
     data = data,
+    xlab = paste(hedgeStrikes[1], "quantity"),
+    ylab = paste(hedgeStrikes[2], "quantity"),
+    zlab = "Value",
     screen = list(z=-30, x=-60, y=0),
     # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
-    scales = list(arrows = FALSE),
+    scales = list(arrows = FALSE, col = 1),
+    par.settings = list(axis.line = list(col = "transparent")),
+    col.regions = colorRampPalette(c("ivory", "lightsteelblue1", "lightsteelblue4"))(1000),
+    colorkey = FALSE,
     drape = TRUE,
     pretty = TRUE)
 }
 
-ChartOptimization2 <- function(scenario, exotic, side, hedgeStrikes, quantities) {
-  res <- 25
-  baseQuantity <- quantities[1]
-  baseScale <- quantities[2] / quantities[1]
+
+# Set up scenario and run optimizations over a varying set of hedge configurations
+RunOptimizationExperiment <- function() {
+  dir.create(file.path(getwd(), "charts"), showWarnings = FALSE)
+  chartType <- "pdf"
+  scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0, riskFreeRate = 0.05)
+  exotic <- CreateBinaryCall(1, 100)
+  strikes <- list(
+    c(95, 105),
+    c(90, 95, 105, 110),
+    c(99, 101),
+    c(98, 98, 101, 102))
   
-  baseAndScale <- expand.grid(
-    base = seq(baseQuantity * 0, baseQuantity * 2.0, length.out = res),
-    scale = seq(baseScale * 0, baseScale * 2.0, length.out = res))
+  pb <- txtProgressBar(max = length(strikes) * 6 + 4)
   
-  value <- apply(
-    baseAndScale,
-    1,
-    function(x) CalculateHedgedPrice(scenario, exotic, side, c(x[1], x[1] * x[2]), hedgeStrikes))
+  saveTrellis <- function(fileName, plot) {
+    trellis.device(device = chartType, file = fileName)
+    print(plot)
+    dev.off()
+    setTxtProgressBar(pb, getTxtProgressBar(pb) + 1)
+  }
   
-  data <- cbind(baseAndScale, value)
+  myggsave <- function(fileName, plot) {
+    ggsave(fileName, plot, width = 14, height = 14)
+    setTxtProgressBar(pb, getTxtProgressBar(pb) + 1)
+  }
   
-  wireframe(
-    value ~ base * scale,
-    data = data,
-    screen = list(z=-30, x=-60, y=0),
-    # screen = list(z = 90, x = 0, y = 0), # TOP DOWN
-    scales = list(arrows = FALSE),
-    drape = TRUE,
-    pretty = TRUE)
+  for (hedgeStrikes in strikes) {
+    o <- RunOptimization(scenario, exotic, hedgeStrikes)
+    setTxtProgressBar(pb, getTxtProgressBar(pb) + 1)
+    
+    # Descriptive name for output files
+    id <- do.call(paste, c(hedgeStrikes, list(sep = "_")))
+    
+    for (side in c("bid", "ask")) {
+      myggsave(paste0("charts/opt_", id, "_payoff_fd1_", side, ".", chartType),
+             o$fdPayoffChart$steps1[[side]])
+      
+      myggsave(paste0("charts/opt_", id, "_payoff_fd2_", side, ".", chartType),
+             o$fdPayoffChart$steps2[[side]])
+      
+      myggsave(paste0("charts/opt_", id, "_payoff_real_", side, ".", chartType),
+             o$precisePayoffChart[[side]])
+      
+      saveTrellis(paste0("charts/opt_", id, "_price_grid1_", side, ".", chartType),
+                  o$pricingChart$steps1[[side]])
+      
+      saveTrellis(paste0("charts/opt_", id, "_price_grid2_", side, ".", chartType),
+                  o$pricingChart$steps2[[side]])
+      
+      if (!is.null(o$optimizationChart)) {
+        saveTrellis(paste0("charts/opt_", id, "_objective_", side, ".", chartType),
+                    o$optimizationChart[[side]])
+      }
+    }
+           
+    close(pb)
+#     o$fdPayoffChart$steps2$bid +
+#       geom_line() + geom_point() +
+#       facet_grid(option ~ ., scales = "free_y") +
+#       # coord_cartesian(xlim = c(95, 105), ylim = c(-1.5, 1.5)) +
+#       xlim(95, 105) +
+#       ylim(-1.5, 1.5) +
+#       theme(legend.position = "none")
+
+    
+  }
+  
 }
