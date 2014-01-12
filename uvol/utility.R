@@ -69,3 +69,11 @@ CreateHedgedPricer <- function(scenario, exotic, side, hedgeStrikes) {
     return(portfolioValue - hedgeCost)
   }
 }
+
+# Save a trellis plot
+SaveTrellis <- function(fileName, plot, fileType = "pdf") {
+  trellis.device(device = fileType, file = fileName)
+  print(plot)
+  dev.off()
+}
+

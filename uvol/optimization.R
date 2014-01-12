@@ -129,8 +129,8 @@ RunOptimization <- function(scenario, exotic, hedgeStrikes) {
   # TODO: For 2 strikes, generate price chart over optimization domain
   optimizationChart <- if (length(hedgeStrikes) == 2) {
     list(
-      bid = ChartOptimization(scenario, exotic, "bid", hedgeStrikes, opt$bid$quantities),
-      ask = ChartOptimization(scenario, exotic, "ask", hedgeStrikes, opt$ask$quantities))
+      bid = ChartOptimization(scenario, exotic, "bid", hedgeStrikes, c(0, 0), opt$bid$quantities * 2),
+      ask = ChartOptimization(scenario, exotic, "ask", hedgeStrikes, c(0, 0), opt$ask$quantities * 2))
   } else {
     NULL
   }
@@ -154,13 +154,10 @@ RunOptimization <- function(scenario, exotic, hedgeStrikes) {
 }
 
 # Create 3D wireframe plot of value around optimum quantities
-ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
-  res <- 25
-  q <- quantities
-  
+ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, minQuantities, maxQuantities, res = 25) {
   quantities <- expand.grid(
-    q1 = seq(q[1] * 0.0, q[1] * 2.0, length.out = res),
-    q2 = seq(q[2] * 0.0, q[2] * 2.0, length.out = res))
+    q1 = seq(minQuantities[1], maxQuantities[1], length.out = res),
+    q2 = seq(minQuantities[2], maxQuantities[2], length.out = res))
 
   value <- apply(quantities, 1, CreateHedgedPricer(scenario, exotic, side, hedgeStrikes))
   
@@ -197,6 +194,7 @@ RunOptimizationExperiment <- function() {
   
   pb <- txtProgressBar(max = length(strikes) * 6 + 4)
   
+  # TODO: Use utility function
   saveTrellis <- function(fileName, plot) {
     trellis.device(device = chartType, file = fileName)
     print(plot)

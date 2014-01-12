@@ -85,13 +85,15 @@ ChartPayoffs <- function(options, prices) {
         price = prices,
         option = paste(options$strike[i], options$type[i]),
         payoff = CalculatePayoffs(options[i,], prices)))
-
+  
   portfolio <- data.frame(
     price = prices,
     option = 'portfolio',
     payoff = CalculatePayoffs(options, prices))
   
-  all <- rbind(do.call(rbind, constituents), portfolio)
+  all <- do.call(rbind, constituents)
+  if (length(constituents) > 1L)
+    alln <- rbind(all, portfolio)
 
   return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
 }
@@ -111,7 +113,9 @@ ChartAveragePayoffs <- function(options, prices, deltaPrice = prices[2] - prices
     option = 'portfolio',
     payoff = CalculateAveragePayoffs(options, prices - deltaPrice, prices + deltaPrice))
 
-  all <- rbind(do.call(rbind, constituents), portfolio)
+  all <- do.call(rbind, constituents)
+  if (length(constituents) > 1L)
+    alln <- rbind(all, portfolio)
   
   return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
 }
