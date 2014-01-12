@@ -1,5 +1,11 @@
 library(nloptr)
+library(ggplot2)
+library(scales)
 
+# Load script dependencies
+if (!exists("CreateScenario", mode = "function")) source("utility.R")
+if (!exists("PriceEuropeanBS", mode = "function")) source("pricing.R")
+if (!exists("ChartPayoffs", mode = "function")) source("payoffAnalysis.R")
 
 # OptimizationResult constructor
 OptimizationResult <- function(quantities, value, raw) {
@@ -49,6 +55,7 @@ OptimizeHedgeR <- function(scenario, exotic, side, hedgeStrikes, maxit = 200) {
   return(OptimizationResult(result$par, result$value, result))
 }
 
+# Run optimization and produce analysis
 RunOptimization <- function(scenario, exotic, hedgeStrikes) {
   # Optimize bid and ask
   opt <- list(
@@ -146,6 +153,7 @@ RunOptimization <- function(scenario, exotic, hedgeStrikes) {
     optimizationChart = optimizationChart))
 }
 
+# Create 3D wireframe plot of value around optimum quantities
 ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, quantities) {
   res <- 25
   q <- quantities
@@ -228,18 +236,15 @@ RunOptimizationExperiment <- function() {
         saveTrellis(paste0("charts/opt_", id, "_objective_", side, ".", chartType),
                     o$optimizationChart[[side]])
       }
-    }
-           
-    close(pb)
-#     o$fdPayoffChart$steps2$bid +
-#       geom_line() + geom_point() +
-#       facet_grid(option ~ ., scales = "free_y") +
-#       # coord_cartesian(xlim = c(95, 105), ylim = c(-1.5, 1.5)) +
-#       xlim(95, 105) +
-#       ylim(-1.5, 1.5) +
-#       theme(legend.position = "none")
-
-    
+    }  
   }
-  
+  close(pb)
+
+  #     o$fdPayoffChart$steps2$bid +
+  #       geom_line() + geom_point() +
+  #       facet_grid(option ~ ., scales = "free_y") +
+  #       # coord_cartesian(xlim = c(95, 105), ylim = c(-1.5, 1.5)) +
+  #       xlim(95, 105) +
+  #       ylim(-1.5, 1.5) +
+  #       theme(legend.position = "none")
 }

@@ -1,4 +1,8 @@
+library(ggplot2)
 
+if (!exists("CreateScenario", mode = "function")) source("utility.R")
+if (!exists("PriceEuropeanBS", mode = "function")) source("pricing.R")
+if (!exists("ChartPayoffs", mode = "function")) source("payoffAnalysis.R")
 
 AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), steps2 = steps1 * 2L, ...) {
   # FD values

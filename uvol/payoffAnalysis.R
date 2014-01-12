@@ -1,4 +1,4 @@
-
+library(ggplot2)
 
 # Calculate payoff at price
 CalculatePayoff <- function(type, strike, price) {

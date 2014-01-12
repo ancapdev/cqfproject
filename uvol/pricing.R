@@ -1,3 +1,5 @@
+library(lattice)
+
 # Options
 options(uvol.steps1 = 210L)
 options(uvol.steps2 = 290L)
@@ -16,12 +18,23 @@ PriceEuropeanBS <- function(scenario, options) {
 }
 
 # Price a european option using finite difference, allowing for uncertain volatility
-PriceEuropeanUncertain <- function(scenario, options, side, steps, interpolation = c("cubic", "linear"), payoffSampling = c("interval", "point"), detail = 0) {
+PriceEuropeanUncertain <- function(
+  scenario,
+  options,
+  side,
+  steps,
+  interpolation = c("cubic", "linear"),
+  payoffSampling = c("interval", "point"),
+  detail = 0) {
+
+  # Verify args
+  interpolation <- match.arg(interpolation)
+  payoffSampling <- match.arg(payoffSampling)
+  
+  
   # TODO: could scale by time horizing and volatility
   maxPrice <- scenario$underlyingPrice * 2
   
-  interpolation <- match.arg(interpolation)
-  payoffSampling <- match.arg(payoffSampling)
   
   CppPriceEuropeanUncertainVol(
     options,
@@ -38,20 +51,9 @@ PriceEuropeanUncertain <- function(scenario, options, side, steps, interpolation
 }
 
 # Price a european option using finite difference with Richardson extrapolation, allowing for uncertain volatility
-PriceEuropeanUncertainRichardson <- function(
-  scenario,
-  options,
-  side,
-  steps1 = getOption('uvol.steps1'),
-  steps2 = getOption('uvol.steps2'),
-  interpolation = c("cubic", "linear"),
-  payoffSampling = c("interval", "point")) {
-  
-  interpolation <- match.arg(interpolation)
-  payoffSampling <- match.arg(payoffSampling)
-  
+PriceEuropeanUncertainRichardson <- function(scenario, options, side, steps1 = getOption('uvol.steps1'), steps2 = getOption('uvol.steps2'), ...) {
   # Prices using a given number of asset steps
-  helper <- function(steps) PriceEuropeanUncertain(scenario, options, side, steps, interpolation)$value
+  helper <- function(steps) PriceEuropeanUncertain(scenario, options, side, steps, ...)$value
 
   # Extrapolation coefficients
   ds1sq <- (1 / steps1)^2
