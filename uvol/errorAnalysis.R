@@ -4,7 +4,7 @@ if (!exists("CreateScenario", mode = "function")) source("utility.R")
 if (!exists("PriceEuropeanBS", mode = "function")) source("pricing.R")
 if (!exists("ChartPayoffs", mode = "function")) source("payoffAnalysis.R")
 
-AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), steps2 = steps1 * 2L, ...) {
+AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), steps2 = steps1 * 2L, useAbsolute = FALSE,...) {
   # FD values
   fd <- sapply(
     steps1,
@@ -30,7 +30,6 @@ AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), 
         scenario$riskFreeRate,
         scenario$underlyingPrice,
         "bid", # arbitrary since minVol = maxVol
-        # s - richardsonOffset,
         s,
         scenario$underlyingPrice * 2,
         ...)$value)
@@ -48,13 +47,13 @@ AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), 
   result <- rbind(
     data.frame(
       value = fd,
-      algorithm = "FD"),
+      algorithm = "FD1"),
     data.frame(
       value = fd2,
       algorithm = "FD2"),
     data.frame(
       value = fdr,
-      algorithm = "FD+Richardson"))
+      algorithm = "Richardson(FD1, FD2)"))
   
   result$steps <- steps2
   result$error <- result$value - bs
@@ -62,16 +61,17 @@ AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), 
   result$relError <- result$error / bs
   result$absRelError <- abs(result$relError)
  
-  optionName <- if (nrow(option) > 1) "portfolio" else paste(option$strike, option$type)
+  p <- if (useAbsolute) {
+    ggplot(result, aes(x = steps, y = absError, group=algorithm, color=algorithm)) + ylab("Absolute Error")
+  } else {
+    ggplot(result, aes(x = steps, y = absRelError, group=algorithm, color=algorithm)) + ylab("Relative Error")
+  }
   
-  p <- ggplot(result, aes(x = steps, y = absRelError, group=algorithm, color=algorithm)) +
+  return (p +
     geom_line() +
     scale_y_log10() +
     scale_x_log10() +
-    xlab("Price Steps") +
-    ylab("Relative Error")
-    # ggtitle(paste("Finite difference errors for", optionName, "at different grid resolutions"))
-  return(p)
+    xlab("Price Steps"))
 }
 
 AnalyzeErrorsByGridPrice <- function(scenario, option, steps = 200, ...) {
@@ -194,52 +194,60 @@ AnalyzeErrors <- function() {
   chartType <- "pdf"
   
   scenario <- CreateScenario(0.2, 0.2)
+
+  pb <- txtProgressBar(max = 2 * 4 * 5 + 4)
+  
+  myggsave <- function(fileName, plot) {
+    ggsave(fileName, plot, width = 10, height = 6)
+    setTxtProgressBar(pb, getTxtProgressBar(pb) + 1)
+  }
   
   for (sampling in c("point", "interval")) {
     for (type in c("call", "put", "bcall", "bput")) {
       option <- CreateOption(1.0, scenario$underlyingPrice, type)
       
       # ATM for varying grid sizes (aligned to price - interpolation error)
-      ggsave(paste0("charts/error_steps_atm_aligned_", sampling, "_", type, ".", chartType),
-             AnalyzeErrorsByStep(scenario, option, seq(30L, 250L, 10L), payoffSampling = sampling))
+      myggsave(paste0("charts/error_steps_atm_aligned_", sampling, "_", type, ".", chartType),
+               AnalyzeErrorsByStep(scenario, option, seq(30L, 250L, 10L), payoffSampling = sampling))
       
       # ATM for varying grid sizes (shifted from price)
-      ggsave(paste0("charts/error_steps_atm_shift_", sampling, "_", type, ".", chartType),
-             AnalyzeErrorsByStep(scenario, option, seq(31L, 251L, 10L), payoffSampling = sampling))
+      myggsave(paste0("charts/error_steps_atm_shift_", sampling, "_", type, ".", chartType),
+               AnalyzeErrorsByStep(scenario, option, seq(31L, 251L, 10L), payoffSampling = sampling))
       
       # ATM for varying grid sizes (detail)
-      ggsave(paste0("charts/error_steps_atm_all_", sampling, "_", type, ".", chartType),
-             AnalyzeErrorsByStep(scenario, option, seq(200L, 220L, 2L), payoffSampling = sampling))
+      myggsave(paste0("charts/error_steps_atm_all_", sampling, "_", type, ".", chartType),
+               AnalyzeErrorsByStep(scenario, option, seq(200L, 220L, 2L), payoffSampling = sampling))
   
       # Varying strikes
-      ggsave(paste0("charts/error_strike_", sampling, "_", type, ".", chartType),
-             AnalyzeErrorsByStrike(scenario, type, payoffSampling = sampling))
+      myggsave(paste0("charts/error_strike_", sampling, "_", type, ".", chartType),
+               AnalyzeErrorsByStrike(scenario, type, payoffSampling = sampling))
       
       # ATM across grid prices
-      ggsave(paste0("charts/error_gridprice_atm_", sampling, "_", type, ".", chartType),
-             AnalyzeErrorsByGridPrice(scenario, option, payoffSampling = sampling))
+      myggsave(paste0("charts/error_gridprice_atm_", sampling, "_", type, ".", chartType),
+              AnalyzeErrorsByGridPrice(scenario, option, payoffSampling = sampling))
     }
   }  
   
   portfolio <- rbind(
     CreateBinaryCall(1, 100),
-    CreateCall(1, 99, qty = -0.5),
-    CreateCall(1, 101, qty = 0.5))
+    CreateCall(1, 95, qty = -0.1),
+    CreateCall(1, 105, qty = 0.1))
   
   # Classically hedged exotic portfolio error for varying grid sizes (aligned to price)
-  ggsave(paste0("charts/error_steps_atm_aligned_hedged_binary1.", chartType),
-         AnalyzeErrorsByStep(scenario, portfolio, seq(10L, 200L, 10L), payoffSampling = "point"))
+  myggsave(paste0("charts/error_steps_atm_aligned_hedged_binary1.", chartType),
+           AnalyzeErrorsByStep(scenario, portfolio, seq(10L, 200L, 10L), payoffSampling = "point"))
   
-  ggsave(paste0("charts/error_steps_atm_aligned_hedged_binary2.", chartType),
-         AnalyzeErrorsByStep(scenario, portfolio, seq(10L, 200L, 10L), payoffSampling = "interval"))
+  myggsave(paste0("charts/error_steps_atm_aligned_hedged_binary2.", chartType),
+           AnalyzeErrorsByStep(scenario, portfolio, seq(10L, 200L, 10L), payoffSampling = "interval"))
   
   # Classically hedged exotic portfolio error for varying grid sizes (shifted from price)
-  ggsave(paste0("charts/error_steps_atm_shift_hedged_binary.", chartType),
-         AnalyzeErrorsByStep(scenario, portfolio, seq(31L, 451L, 10L)))
+  myggsave(paste0("charts/error_steps_atm_shift_hedged_binary.", chartType),
+           AnalyzeErrorsByStep(scenario, portfolio, seq(31L, 451L, 10L), useAbsolute = TRUE))
   
   # Classically hedged exotic portfolio error for varying grid sizes (detailed)
-  ggsave(paste0("charts/error_steps_atm_all_hedged_binary.", chartType),
-         AnalyzeErrorsByStep(scenario, portfolio, seq(200L, 220L, 1L)))
+  myggsave(paste0("charts/error_steps_atm_all_hedged_binary.", chartType),
+           AnalyzeErrorsByStep(scenario, portfolio, seq(200L, 220L, 1L), useAbsolute = TRUE))
   
+  close(pb)
   # Note on odd vs even grid sizes (even always falls at grid for current price, odd always fall outside, assuming maxPrice = price * 2)
 }

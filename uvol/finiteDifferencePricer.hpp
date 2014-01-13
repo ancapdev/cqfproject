@@ -206,7 +206,7 @@ namespace CqfProject
                 if (mPayoffSampling == PayoffSampling::POINT)
                 {
                     for (std::uint32_t i = 0; i <= numPriceSteps; ++i)
-                        current[i] += contract.CalculatePayoff(prices[i]);
+                        current[i] += contract.CalculatePayoff(prices[i]) * contract.multiplier;
                 }
                 else
                 {

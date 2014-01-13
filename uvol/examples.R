@@ -40,6 +40,17 @@ RunExamples <- function() {
     "charts/example_average_payoffs.pdf",
     ChartAveragePayoffs(CreateCall(1, 100), 98:102))
   
+  p <- ChartPayoffs(
+    rbind(
+      CreateBinaryCall(1, 100),
+      CreateCall(1, 95, qty = -0.1),
+      CreateCall(1, 105, qty = 0.1)),
+    seq(90, 110, length.out = 200)) +
+    facet_grid(option ~ ., scales = "free_y") +
+    theme(legend.position = "none")
+  
+  ggsave("charts/example_hedged_payoffs.pdf", p)
+  
   #
   # Optimization charts
   #
@@ -52,7 +63,65 @@ RunExamples <- function() {
       c(95, 105),
       c(0, 0),
       c(-0.5, 0.5)))
-  
 }
 
 RunExamples()
+
+PricingWithConstantVolExample <- function() {
+  params <- expand.grid(
+  vol = c(0.2, 0.3),
+  expiry = c(1, 2),
+  strike = c(90, 100, 110))
+
+  values <- do.call(
+    rbind,
+    mapply(
+      function(vol, expiry, strike) {
+        scenario <- CreateScenario(vol, vol)
+        option <- CreateCall(expiry, strike)
+        data.frame(
+          bs = PriceEuropeanBS(scenario, option),
+          fd = PriceEuropeanUncertain(scenario, option, "bid", 100)$value,
+          fdr = PriceEuropeanUncertainRichardson(scenario, option, "bid", 50, 100))
+      },
+      params$vol, params$expiry, params$strike,
+      SIMPLIFY = FALSE))
+  
+  cbind(params, values)
+}
+
+PricingWithUncertainVolExample <- function() {
+scenario <- CreateScenario(0.1, 0.3)
+option <- CreateCall(1, 100)
+PriceEuropeanUncertainRichardson(scenario, option, "bid")
+PriceEuropeanUncertainRichardson(scenario, option, "ask")
+PriceEuropeanBS(CreateScenario(0.1, 0.1), option)
+PriceEuropeanBS(CreateScenario(0.3, 0.3), option)
+}
+
+PricingBinaryWithUncertainVolExample <- function() {
+scenario1 <- CreateScenario(0.2, 0.3)
+scenario2 <- CreateScenario(0.1, 0.4)
+option <- CreateBinaryCall(1, 100)
+PriceEuropeanUncertainRichardson(scenario1, option, "bid")
+PriceEuropeanUncertainRichardson(scenario1, option, "ask")
+PriceEuropeanUncertainRichardson(scenario2, option, "bid")
+PriceEuropeanUncertainRichardson(scenario2, option, "ask")
+PriceEuropeanBS(CreateScenario(0.2, 0.2), option)
+PriceEuropeanBS(CreateScenario(0.3, 0.3), option)
+}
+
+PriceHedgedExoticExample <- function() {
+scenario <- CreateScenario(0.1, 0.3)
+exotic <- CreateBinaryCall(1, 100)
+hedges <- rbind(
+  CreateCall(1, 95, qty = -0.1),
+  CreateCall(1, 105, qty = 0.1))
+portfolio <- rbind(exotic, hedges)
+exoticValue <- PriceEuropeanUncertainRichardson(scenario, exotic, "bid")
+basketValue <- PriceEuropeanUncertainRichardson(scenario, portfolio, "bid")
+hedgeCost <- PriceEuropeanBS(scenario, hedges)
+hedgedExoticValue <- basketValue - hedgeCost
+exoticValue
+hedgedExoticValue
+}

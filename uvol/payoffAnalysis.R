@@ -93,7 +93,7 @@ ChartPayoffs <- function(options, prices) {
   
   all <- do.call(rbind, constituents)
   if (length(constituents) > 1L)
-    alln <- rbind(all, portfolio)
+    all <- rbind(all, portfolio)
 
   return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
 }
@@ -115,7 +115,7 @@ ChartAveragePayoffs <- function(options, prices, deltaPrice = prices[2] - prices
 
   all <- do.call(rbind, constituents)
   if (length(constituents) > 1L)
-    alln <- rbind(all, portfolio)
+    all <- rbind(all, portfolio)
   
   return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
 }
