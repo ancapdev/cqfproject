@@ -4,7 +4,7 @@ if (!exists("CreateScenario", mode = "function")) source("utility.R")
 if (!exists("PriceEuropeanBS", mode = "function")) source("pricing.R")
 if (!exists("ChartPayoffs", mode = "function")) source("payoffAnalysis.R")
 
-AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), steps2 = steps1 * 2L, useAbsolute = FALSE,...) {
+AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), steps2 = steps1 * 2L, linearPriceScale = FALSE, useAbsolute = FALSE,...) {
   # FD values
   fd <- sapply(
     steps1,
@@ -67,10 +67,12 @@ AnalyzeErrorsByStep <- function(scenario, option, steps1 = seq(20L, 150L, 10L), 
     ggplot(result, aes(x = steps, y = absRelError, group=algorithm, color=algorithm)) + ylab("Relative Error")
   }
   
+  if (!linearPriceScale)
+    p <- p + scale_x_log10()
+  
   return (p +
     geom_line() +
     scale_y_log10() +
-    scale_x_log10() +
     xlab("Price Steps"))
 }
 
@@ -172,7 +174,7 @@ AnalyzeErrorsByStrike <- function(
       algorithm = "FD2"),
     data.frame(
       value = fdr,
-      algorithm = "Richardson (FD1 + FD2)"))
+      algorithm = "Richardson(FD1, FD2)"))
   
   result$strikes <- strikes
   result$error <- result$value - bs
@@ -180,12 +182,11 @@ AnalyzeErrorsByStrike <- function(
 
   p <- ggplot(result, aes(x = strikes, y = abs(relError), group=algorithm, color=algorithm)) +
     geom_line() +
-    geom_line(stat = "hline", yintercept = mean) +
+    # geom_line(stat = "hline", yintercept = mean) +
     scale_y_log10() +
     xlab("Strike") +
     ylab("Relative Error")
-    # ggtitle(paste("Finite difference errors for", type, "at different strikes"))
-   
+  
   return(p)
 }
 
@@ -195,7 +196,7 @@ AnalyzeErrors <- function() {
   
   scenario <- CreateScenario(0.2, 0.2)
 
-  pb <- txtProgressBar(max = 2 * 4 * 5 + 4)
+  pb <- txtProgressBar(max = 2 * 4 * 6 + 7)
   
   myggsave <- function(fileName, plot) {
     ggsave(fileName, plot, width = 10, height = 6)
@@ -216,8 +217,12 @@ AnalyzeErrors <- function() {
       
       # ATM for varying grid sizes (detail)
       myggsave(paste0("charts/error_steps_atm_all_", sampling, "_", type, ".", chartType),
-               AnalyzeErrorsByStep(scenario, option, seq(200L, 220L, 2L), payoffSampling = sampling))
+               AnalyzeErrorsByStep(scenario, option, 100:108, 120:128, linearPriceScale = TRUE, payoffSampling = sampling))
   
+      # ATM for varying grid sizes and odd differences (detail)
+      myggsave(paste0("charts/error_steps_atm_all_odd_", sampling, "_", type, ".", chartType),
+               AnalyzeErrorsByStep(scenario, option, 100:108, 121:129, linearPriceScale = TRUE, payoffSampling = sampling))
+      
       # Varying strikes
       myggsave(paste0("charts/error_strike_", sampling, "_", type, ".", chartType),
                AnalyzeErrorsByStrike(scenario, type, payoffSampling = sampling))
@@ -247,6 +252,21 @@ AnalyzeErrors <- function() {
   # Classically hedged exotic portfolio error for varying grid sizes (detailed)
   myggsave(paste0("charts/error_steps_atm_all_hedged_binary.", chartType),
            AnalyzeErrorsByStep(scenario, portfolio, seq(200L, 220L, 1L), useAbsolute = TRUE))
+  
+  options <- rbind(
+    CreateBinaryCall(1, 100),
+    CreateCall(1, 99, qty = -0.5),
+    CreateCall(1, 101, qty = 0.5))
+
+  myggsave(paste0("charts/payoff_point_hedged_binary_98_102_5.", chartType),
+           ChartPayoffs(options, 98:102))
+
+  myggsave(paste0("charts/payoff_interval_hedged_binary_98_102_5.", chartType),
+           ChartAveragePayoffs(options, 98:102))
+  
+  myggsave(paste0("charts/payoff_point_hedged_binary_98_102_400.", chartType),
+           ChartPayoffs(options, seq(98, 102, length.out = 400)))
+  
   
   close(pb)
   # Note on odd vs even grid sizes (even always falls at grid for current price, odd always fall outside, assuming maxPrice = price * 2)

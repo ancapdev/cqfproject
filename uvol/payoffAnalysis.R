@@ -1,13 +1,13 @@
 library(ggplot2)
 
 # Calculate payoff at price
-CalculatePayoff <- function(type, strike, price) {
+CalculatePayoff <- function(type, strike, price, epsilon = 0.0001) {
   switch(
     type,
     call = max(price - strike, 0),
     put = max(strike - price, 0),
-    bcall = if(price > strike) 1 else 0,
-    bput = if(price < strike) 1 else 0)
+    bcall = if(price > (strike - epsilon)) 1 else 0,
+    bput = if(price < (strike + epsilon)) 1 else 0)
 }
 
 # Calculate average payoff in interval [price1, price2]
@@ -95,7 +95,10 @@ ChartPayoffs <- function(options, prices) {
   if (length(constituents) > 1L)
     all <- rbind(all, portfolio)
 
-  return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
+  return(ggplot(all, aes(x = price, y = payoff, group = option, color = option))
+         + geom_line()
+         + facet_grid(option ~ ., scales = "free_y")
+         + theme(legend.position = "none"))
 }
 
 # Generate ggplot2 payoff chart over a range of prices using interval payoff calculations centered at prices
@@ -117,5 +120,8 @@ ChartAveragePayoffs <- function(options, prices, deltaPrice = prices[2] - prices
   if (length(constituents) > 1L)
     all <- rbind(all, portfolio)
   
-  return(ggplot(all, aes(x = price, y = payoff, group = option, color = option)) + geom_line())
+  return(ggplot(all, aes(x = price, y = payoff, group = option, color = option))
+         + geom_line()
+         + facet_grid(option ~ ., scales = "free_y")
+         + theme(legend.position = "none"))
 }

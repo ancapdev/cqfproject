@@ -107,7 +107,7 @@ RunOptimization <- function(scenario, exotic, hedgeStrikes) {
   chartPrecise <- function(side) {
     p <- c(exotic$strike, hedgeStrikes)
     p <- sort(c(p - 0.001, p + 0.001))
-    p <- c(0, p, scenario$underlyingPrice * 2)
+    p <- c(2 * hedgeStrikes[1] - exotic$strike, p, 2 * hedgeStrikes[length(hedgeStrikes)] - exotic$strike)
     
     return(ChartPayoffs(portfolio[[side]], p))
   }
@@ -183,6 +183,8 @@ ChartOptimization <- function(scenario, exotic, side, hedgeStrikes, minQuantitie
 # Set up scenario and run optimizations over a varying set of hedge configurations
 RunOptimizationExperiment <- function() {
   dir.create(file.path(getwd(), "charts"), showWarnings = FALSE)
+  dir.create(file.path(getwd(), "tables"), showWarnings = FALSE)
+  
   chartType <- "pdf"
   scenario <- CreateScenario(0.1, 0.3, underlyingPrice = 100.0, riskFreeRate = 0.05)
   exotic <- CreateBinaryCall(1, 100)
@@ -190,7 +192,7 @@ RunOptimizationExperiment <- function() {
     c(95, 105),
     c(90, 95, 105, 110),
     c(99, 101),
-    c(98, 98, 101, 102))
+    c(98, 99, 101, 102))
   
   pb <- txtProgressBar(max = length(strikes) * 6 + 4)
   
@@ -206,6 +208,9 @@ RunOptimizationExperiment <- function() {
     ggsave(fileName, plot, width = 14, height = 14)
     setTxtProgressBar(pb, getTxtProgressBar(pb) + 1)
   }
+  
+  opt2result <- NULL
+  opt4result <- NULL
   
   for (hedgeStrikes in strikes) {
     o <- RunOptimization(scenario, exotic, hedgeStrikes)
@@ -234,8 +239,55 @@ RunOptimizationExperiment <- function() {
         saveTrellis(paste0("charts/opt_", id, "_objective_", side, ".", chartType),
                     o$optimizationChart[[side]])
       }
-    }  
+    }
+    
+    baseResult <-
+      data.frame(
+        bid = round(o$bid, 4),
+        ask = round(o$ask, 4),
+        spread = round(o$spread, 4),
+        relBidError = round(o$relError$bid, 4),
+        relAskError = round(o$relError$ask, 4),
+        adjustedBid = round(o$adjustedBid, 4),
+        adjustedAsk = round(o$adjustedAsk, 4),
+        adjustedSpread = round(o$adjustedSpread, 4))
+    
+    if (length(hedgeStrikes) == 2) {
+      opt2result <- rbind(
+        opt2result,
+        cbind(
+          baseResult,
+          data.frame(
+            s1 = hedgeStrikes[1],
+            s2 = hedgeStrikes[2],
+            bq1 = round(o$opt$bid$quantities[1], 4),
+            bq2 = round(o$opt$bid$quantities[2], 4),
+            aq1 = round(o$opt$ask$quantities[1], 4),
+            aq2 = round(o$opt$ask$quantities[2], 4))))
+    } else {
+      opt4result <- rbind(
+        opt4result,
+        cbind(
+          baseResult,
+          data.frame(
+            s1 = hedgeStrikes[1],
+            s2 = hedgeStrikes[2],
+            s3 = hedgeStrikes[3],
+            s4 = hedgeStrikes[4],
+            bq1 = round(o$opt$bid$quantities[1], 4),
+            bq2 = round(o$opt$bid$quantities[2], 4),
+            bq3 = round(o$opt$bid$quantities[3], 4),
+            bq4 = round(o$opt$bid$quantities[4], 4),
+            aq1 = round(o$opt$ask$quantities[1], 4),
+            aq2 = round(o$opt$ask$quantities[2], 4),
+            aq3 = round(o$opt$ask$quantities[3], 4),
+            aq4 = round(o$opt$ask$quantities[4], 4))))
+    }
   }
+  
+  write.csv(opt2result, "tables/opt2.csv", row.names = FALSE, quote = FALSE)
+  write.csv(opt4result, "tables/opt4.csv", row.names = FALSE, quote = FALSE)
+  
   close(pb)
 
   #     o$fdPayoffChart$steps2$bid +
